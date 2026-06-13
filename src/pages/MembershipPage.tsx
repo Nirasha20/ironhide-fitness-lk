@@ -3,30 +3,27 @@ import { PageWrapper } from '../components/layout/PageWrapper';
 
 const plans = [
   {
+    tier: 'Trial',
+    name: 'DAILY',
+    price: '500',
+    period: '/DAY',
+    features: [
+      { text: '24/7 Access', available: true },
+      { text: 'Locker Room', available: true },
+    ],
+    popular: false,
+  },
+  {
     tier: 'Foundation',
     name: 'MONTHLY',
     price: '5,000',
     period: '/MO',
     features: [
-      { text: '24/7 Facility Access', available: true },
-      { text: 'Premium AC Locker Rooms', available: true },
-      { text: 'Standard Equipment Access', available: true },
-      { text: 'Expert Personal Training', available: false },
+      { text: '24/7 Access', available: true },
+      { text: 'Locker Room', available: true },
+      { text: 'Standard Equipment', available: true },
     ],
     popular: false,
-  },
-  {
-    tier: 'Warrior',
-    name: 'QUARTERLY',
-    price: '13,500',
-    period: '/3 MO',
-    features: [
-      { text: 'All Foundation Benefits', available: true },
-      { text: '2 Guest Passes per Month', available: true },
-      { text: '1 Nutrition Consultation', available: true },
-      { text: 'Expert Trainer Access', available: true },
-    ],
-    popular: true,
   },
   {
     tier: 'Elite',
@@ -34,10 +31,22 @@ const plans = [
     price: '48,000',
     period: '/YR',
     features: [
-      { text: 'Unlimited All-Access', available: true },
-      { text: 'Monthly Trainer PT Sessions', available: true },
-      { text: 'Exclusive IronHide Apparel Kit', available: true },
-      { text: 'VIP Recovery Lounge', available: true },
+      { text: 'Unlimited Access', available: true },
+      { text: 'PT Sessions', available: true },
+      { text: 'Apparel Kit', available: true },
+      { text: 'VIP Lounge', available: true },
+    ],
+    popular: true,
+  },
+  {
+    tier: 'Duo',
+    name: 'ANNUAL — COUPLE',
+    price: '80,000',
+    period: '/YR',
+    features: [
+      { text: 'Everything in Annual', available: true },
+      { text: 'Partner Account Included', available: true },
+      { text: 'Shared Expiry', available: true },
     ],
     popular: false,
   },
@@ -59,11 +68,11 @@ export default function MembershipPage() {
 
         {/* Plans Grid */}
         <section className="px-margin-mobile md:px-margin-desktop pb-section-gap max-w-container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
             {plans.map(plan => (
               <div
                 key={plan.name}
-                className={`bg-[#111111] p-8 flex flex-col items-center transition-all hover:-translate-y-2 relative ${plan.popular ? 'border-2 border-primary-container scale-105 z-10 crimson-glow' : 'border border-[#333333] border-t-2 border-t-primary-container'}`}
+                className={`bg-[#111111] p-8 flex flex-col items-center transition-all hover:-translate-y-2 relative ${plan.popular ? 'border-2 border-primary-container scale-105 z-10 crimson-glow' : 'border-t-2 border-t-primary-container border border-[#333333]'}`}
               >
                 {plan.popular && (
                   <div className="absolute -top-4 bg-primary-container text-white font-label-sm text-label-sm px-4 py-1 uppercase font-extrabold tracking-widest">

@@ -24,6 +24,7 @@ import CookiePolicyPage from './pages/CookiePolicyPage';
 import RefundPolicyPage from './pages/RefundPolicyPage';
 import HelpPage from './pages/HelpPage';
 import SettingsPage from './pages/SettingsPage';
+import StaffParkingPage from './pages/StaffParkingPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="/refund-policy" element={<RefundPolicyPage />} />
             <Route path="/help" element={<HelpPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/staff/parking" element={<StaffParkingPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </BrowserRouter>

@@ -3,6 +3,8 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { PageWrapper } from '../components/layout/PageWrapper';
 
+interface ParkingData { carCount: number; carCapacity: number; bikeCount: number; bikeCapacity: number; }
+
 interface OccupancyData {
   count: number;
   updatedAt: Date | null;
@@ -29,6 +31,7 @@ const PEAK_HOURS = [
 export default function OccupancyPage() {
   const [occupancy, setOccupancy] = useState<OccupancyData>({ count: 0, updatedAt: null });
   const [connected, setConnected] = useState(false);
+  const [parking, setParking] = useState<ParkingData>({ carCount: 0, carCapacity: 20, bikeCount: 0, bikeCapacity: 15 });
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'gym_meta', 'occupancy'), snap => {
@@ -38,6 +41,16 @@ export default function OccupancyPage() {
       }
       setConnected(true);
     }, () => setConnected(false));
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'gym', 'parking'), snap => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setParking({ carCount: d.carCount ?? 0, carCapacity: d.carCapacity ?? 20, bikeCount: d.bikeCount ?? 0, bikeCapacity: d.bikeCapacity ?? 15 });
+      }
+    });
     return unsub;
   }, []);
 
@@ -119,6 +132,32 @@ export default function OccupancyPage() {
                 <span className="font-label-sm text-label-sm text-on-surface-variant">{h.hour}</span>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Parking Availability */}
+        <div className="bg-surface-container border-t-2 border-primary-container p-8 mt-gutter">
+          <h3 className="font-display text-headline-md uppercase mb-6">PARKING AVAILABILITY</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              { label: 'Car Spaces', count: parking.carCount, capacity: parking.carCapacity },
+              { label: 'Motorbike Spaces', count: parking.bikeCount, capacity: parking.bikeCapacity },
+            ].map(({ label, count, capacity }) => {
+              const available = capacity - count;
+              const full = available === 0;
+              return (
+                <div key={label} className="bg-surface-container-high p-6 space-y-3">
+                  <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">{label}</p>
+                  <p className={`font-display text-headline-lg ${full ? 'text-red-400' : 'text-green-400'}`}>
+                    {available} <span className="text-on-surface-variant font-body text-body-lg">/ {capacity}</span>
+                  </p>
+                  <p className={`font-body text-body-md ${full ? 'text-red-400' : 'text-green-400'}`}>{full ? 'FULL' : 'AVAILABLE'}</p>
+                  <div className="w-full bg-surface-container h-2">
+                    <div className={`h-full transition-all ${full ? 'bg-red-400' : 'bg-green-400'}`} style={{ width: `${Math.min(100, (count / capacity) * 100)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

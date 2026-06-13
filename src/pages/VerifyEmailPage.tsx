@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { sendEmailVerification, reload, signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
@@ -8,6 +8,8 @@ import { Button } from '../components/ui/Button';
 export default function VerifyEmailPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { coupleLinkId } = (location.state as { coupleLinkId?: string }) ?? {};
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -85,6 +87,16 @@ export default function VerifyEmailPage() {
               Sign in with different account
             </button>
           </div>
+
+          {coupleLinkId && (
+            <div className="bg-surface-container-high border border-border-default p-4 space-y-2 text-left">
+              <p className="font-label-sm text-label-sm text-primary-container uppercase tracking-widest">Annual Couple — Partner Invite</p>
+              <p className="font-body text-body-md text-on-surface-variant">Share this link with your partner to create their linked account:</p>
+              <p className="font-body text-body-md text-on-surface break-all select-all">
+                {window.location.origin}/signup?coupleLink={coupleLinkId}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

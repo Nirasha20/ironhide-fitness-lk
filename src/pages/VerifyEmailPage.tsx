@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { sendEmailVerification, reload, signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
@@ -14,6 +14,22 @@ export default function VerifyEmailPage() {
   const [resent, setResent] = useState(false);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
+  const [stripeStatus, setStripeStatus] = useState<'success' | 'cancelled' | null>(null);
+  const [bannerVisible, setBannerVisible] = useState(true);
+
+  // Check for Stripe return status from URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const status = params.get('stripe');
+    if (status === 'success' || status === 'cancelled') {
+      setStripeStatus(status as 'success' | 'cancelled');
+      // Clean up URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('stripe');
+      url.searchParams.delete('session_id');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [location.search]);
 
   const handleResend = async () => {
     if (!user) return;
@@ -56,7 +72,47 @@ export default function VerifyEmailPage() {
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
-        <div className="font-display text-headline-lg text-primary-container mb-12">IRONHIDE</div>
+        <div className="font-display text-headline-lg text-primary-container mb-12">IRONHIDE FITNESS</div>
+        
+        {/* Stripe Payment Return Banner */}
+        {stripeStatus === 'success' && bannerVisible && (
+          <div className="mb-8 border border-green-500 bg-green-500/10 p-4 flex items-start gap-3 rounded relative">
+            <span className="material-symbols-outlined text-green-400 text-2xl shrink-0">check_circle</span>
+            <div className="flex-1 text-left">
+              <p className="font-display text-body-lg uppercase text-green-400">Payment Successful ✓</p>
+              <p className="font-body text-body-md text-on-surface-variant mt-1">
+                Your card payment has been received. Now verify your email to activate your membership.
+              </p>
+            </div>
+            <button
+              onClick={() => setBannerVisible(false)}
+              className="text-on-surface-variant hover:text-on-surface shrink-0"
+              aria-label="Dismiss"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+        )}
+
+        {stripeStatus === 'cancelled' && bannerVisible && (
+          <div className="mb-8 border border-yellow-500 bg-yellow-500/10 p-4 flex items-start gap-3 rounded relative">
+            <span className="material-symbols-outlined text-yellow-400 text-2xl shrink-0">info</span>
+            <div className="flex-1 text-left">
+              <p className="font-display text-body-lg uppercase text-yellow-400">Payment Cancelled</p>
+              <p className="font-body text-body-md text-on-surface-variant mt-1">
+                Your payment was not completed. No charge has been made. You can try again from the Renew page.
+              </p>
+            </div>
+            <button
+              onClick={() => setBannerVisible(false)}
+              className="text-on-surface-variant hover:text-on-surface shrink-0"
+              aria-label="Dismiss"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+        )}
+        
         <div className="bg-surface-container border-t-2 border-primary-container p-8 space-y-6">
           <div className="flex justify-center mb-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cc0000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

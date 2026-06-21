@@ -48,7 +48,7 @@ export default function LandingPage() {
       {/* Stats Strip */}
       <section className="py-section-gap px-margin-mobile md:px-margin-desktop max-w-container mx-auto">
         <div className="flex flex-col items-center mb-16">
-          <h2 className="font-display text-headline-lg text-on-surface mb-4">WHY IRONHIDE</h2>
+          <h2 className="font-display text-headline-lg text-on-surface mb-4">WHY IRONHIDE FITNESS</h2>
           <div className="w-24 h-1 bg-primary-container" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-gutter">

@@ -4,7 +4,7 @@ export function Footer() {
   return (
     <footer className="w-full py-section-gap px-margin-mobile md:px-margin-desktop grid grid-cols-1 md:grid-cols-4 gap-gutter bg-surface-container border-t-2 border-primary-container">
       <div className="flex flex-col gap-6">
-        <div className="font-display text-headline-md text-primary-container">IRONHIDE</div>
+        <div className="font-display text-headline-md text-primary-container">IRONHIDE FITNESS</div>
         <p className="font-label-sm text-label-sm text-on-surface-variant max-w-xs uppercase tracking-widest leading-loose">
           Built for the dedicated. Forged in discipline. Join the elite community.
         </p>

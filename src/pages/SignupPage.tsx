@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
-import { initiatePayHerePayment } from '../lib/payhere';
+import { createUserWithEmailAndPassword, sendEmailVerification, deleteUser } from 'firebase/auth';
+import { initiateStripeCheckout } from '../lib/stripe';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, storage } from '../lib/firebase';
 import { db } from '../lib/firebase';
@@ -183,7 +183,12 @@ export default function SignupPage() {
       try {
         const userCred = await createUserWithEmailAndPassword(auth, personal.email, personal.password);
         const uid = userCred.user.uid;
-        await sendEmailVerification(userCred.user).catch(() => {});
+        try {
+          await sendEmailVerification(userCred.user);
+        } catch (emailErr) {
+          console.error('[SignupPage] sendEmailVerification error (partner flow):', emailErr);
+          setSubmitError('Could not send verification email. If running locally, the Firebase Auth emulator does not send real emails.');
+        }
 
         let photoUrl = '';
         if (photoFile) {
@@ -220,6 +225,7 @@ export default function SignupPage() {
           legacyMembershipId: personal.legacyMembershipId,
           transportMode: personal.transportMode,
         });
+      
 
         // Update primary member
         await updateDoc(doc(db, 'members', coupleData.primaryUid), {
@@ -229,37 +235,43 @@ export default function SignupPage() {
 
         setCompleted(true);
         navigate('/verify-email');
-      } catch {
-        setSubmitError('Registration failed. The email may already be in use, or try again later.');
+      } catch (err: any) {
+        console.error('[SignupPage] Couple account registration error:', err?.message || err);
+        
+        // If user was created but registration failed, delete the user account
+        try {
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            console.log('[SignupPage] Deleting user account due to registration failure:', currentUser.uid);
+            await deleteUser(currentUser);
+            console.log('[SignupPage] User account deleted successfully');
+          }
+        } catch (deleteErr: any) {
+          console.error('[SignupPage] Failed to delete user account on error:', deleteErr?.message || deleteErr);
+        }
+        
+        setSubmitError('Registration failed. Please try again or contact support if the problem persists.');
       } finally {
         setLoading(false);
       }
       return;
     }
-
-    if (!privacyAccepted) { setSubmitError('Please accept the data privacy statement to continue.'); return; }
+        
+      if (!privacyAccepted) { setSubmitError('Please accept the data privacy statement to continue.'); return; }
     if (!paymentMethod) { setSubmitError('Please select a payment method.'); return; }
     if (paymentMethod === 'bank_transfer' && !receiptFile) { setSubmitError('Please upload your bank transfer receipt.'); return; }
     setLoading(true);
     setSubmitError('');
     try {
-      if (paymentMethod === 'card') {
-        initiatePayHerePayment({
-          orderId: `IH-${Date.now()}`,
-          amount: selectedPlan?.price ?? 0,
-          currency: 'LKR',
-          itemName: `IronHide ${selectedPlan?.name ?? 'Membership'}`,
-          firstName: personal.fullName.split(' ')[0] ?? '',
-          lastName: personal.fullName.split(' ').slice(1).join(' ') ?? '',
-          email: personal.email,
-          phone: personal.phone,
-        });
-        setLoading(false);
-        return;
-      }
+      // Create user account first
       const userCred = await createUserWithEmailAndPassword(auth, personal.email, personal.password);
       const uid = userCred.user.uid;
-      await sendEmailVerification(userCred.user).catch(() => {});
+      try {
+        await sendEmailVerification(userCred.user);
+      } catch (emailErr) {
+        console.error('[SignupPage] sendEmailVerification error:', emailErr);
+        setSubmitError('Could not send verification email. If running locally, the Firebase Auth emulator does not send real emails.');
+      }
 
       let photoUrl = '';
       if (photoFile) {
@@ -268,6 +280,67 @@ export default function SignupPage() {
         photoUrl = await getDownloadURL(photoRef);
       }
 
+      // 3. Card Payment — Stripe
+      if (paymentMethod === 'card') {
+        try {
+          if (!selectedPlan) {
+            throw new Error('No membership plan selected');
+          }
+
+          await createMember(uid, {
+            fullName: personal.fullName,
+            email: personal.email,
+            phone: personal.phone,
+            dob: new Date(personal.dob),
+            gender: personal.gender,
+            address: personal.address,
+            emergencyContact: { name: personal.emergencyName, phone: personal.emergencyPhone },
+            height: Number(health.height),
+            weight: Number(health.weight),
+            bmi,
+            medicalConditions: health.medicalConditions,
+            medications: health.medications,
+            injuries: health.injuries,
+            photoUrl,
+            lockerNumber: '',
+            membershipTier: selectedPlan.name,
+            membershipStatus: 'pending_verification',   // Stripe webhook will set to 'active'
+            membershipExpiry: new Date(),                // Stripe webhook will set correct expiry
+          });
+
+          await updateDoc(doc(db, 'members', uid), {
+            legacyMembershipId: personal.legacyMembershipId,
+            transportMode: personal.transportMode,
+          });
+
+          console.log('[SignupPage] Initiating Stripe checkout for uid:', uid);
+          
+          // Initiate Stripe checkout — this redirects user to Stripe Checkout page
+          // User leaves the app here — execution stops
+          // Stripe webhook will activate membership on success
+          await initiateStripeCheckout({
+            planId: selectedPlan.id,
+            planName: selectedPlan.name,
+            amount: selectedPlan.price,
+            uid,
+          });
+          // Execution stops here (user redirected to Stripe)
+          return;
+        } catch (stripeErr: any) {
+          console.error('[SignupPage] Card payment error:', stripeErr?.message || stripeErr);
+          
+          // Handle specific Stripe errors
+          if (stripeErr?.message?.includes('checkout URL') || stripeErr?.message?.includes('failed to load')) {
+            throw new Error('Could not connect to payment gateway. Please check your internet connection and try again.');
+          } else if (stripeErr?.message?.includes('No checkout URL') || stripeErr?.message?.includes('createStripeCheckoutSession')) {
+            throw new Error('Payment gateway is temporarily unavailable. Please try again in a few moments.');
+          } else {
+            throw new Error(stripeErr?.message || 'Failed to initiate payment. Please check your connection and try again.');
+          }
+        }
+      }
+
+      // 4. Bank Transfer or Cash Payment
       let receiptUrl = '';
       if (paymentMethod === 'bank_transfer' && receiptFile) {
         const receiptRef = ref(storage, `members/${uid}/receipts/${Date.now()}.jpg`);
@@ -325,8 +398,31 @@ export default function SignupPage() {
 
       setCompleted(true);
       navigate('/verify-email');
-    } catch {
-      setSubmitError('Registration failed. The email may already be in use, or try again later.');
+    } catch (err: any) {
+      console.error('[SignupPage] Registration error:', err?.message || err);
+      
+      // If user was created but registration failed, delete the user account
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          console.log('[SignupPage] Deleting user account due to registration failure:', currentUser.uid);
+          await deleteUser(currentUser);
+          console.log('[SignupPage] User account deleted successfully');
+        }
+      } catch (deleteErr: any) {
+        console.error('[SignupPage] Failed to delete user account on error:', deleteErr?.message || deleteErr);
+      }
+      
+      // Show specific error based on the failure type
+      if (err?.message?.includes('Payment gateway')) {
+        setSubmitError(err.message);
+      } else if (err?.message?.includes('Could not connect')) {
+        setSubmitError('Failed to connect to payment gateway. Please check your internet connection and try again.');
+      } else if (err?.message?.includes('upload')) {
+        setSubmitError('Failed to upload files. Please check your internet connection and try again.');
+      } else {
+        setSubmitError('Registration failed. Please try again with a different email or contact support if the problem persists.');
+      }
     } finally {
       setLoading(false);
     }
@@ -337,7 +433,7 @@ export default function SignupPage() {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center px-margin-mobile">
         <div className="max-w-lg text-center space-y-6">
-          <div className="font-display text-headline-lg text-primary-container">IRONHIDE</div>
+          <div className="font-display text-headline-lg text-primary-container">IRONHIDE FITNESS</div>
           <div className="bg-surface-container border-t-2 border-primary-container p-8 space-y-6">
             <span className="material-symbols-outlined text-red-400 text-6xl block">link_off</span>
             <h1 className="font-display text-headline-lg uppercase">Invalid Invite Link</h1>
@@ -358,11 +454,18 @@ export default function SignupPage() {
           <span className="material-symbols-outlined text-primary-container text-6xl mb-6 block">check_circle</span>
           <h1 className="font-display text-headline-lg uppercase mb-4">Registration Complete!</h1>
           <p className="text-body-lg text-on-surface-variant font-body mb-8">
-            {paymentMethod === 'cash'
+            {paymentMethod === 'card'
+              ? 'You have been redirected to complete payment securely via Stripe. After payment is confirmed, your membership will be activated automatically.'
+              : paymentMethod === 'cash'
               ? 'Please make payment at the gym reception. Your membership will be activated once confirmed.'
-              : 'Your application is under review. You will be notified once your membership is activated.'}
+              : 'Your bank transfer receipt has been received. Your membership will be activated once we verify payment. You will be notified within 24 hours.'}
           </p>
-          <Button variant="primary" size="lg" onClick={() => navigate('/dashboard')}>GO TO DASHBOARD</Button>
+          <div className="space-y-3">
+            <Button variant="primary" size="lg" onClick={() => navigate('/dashboard')}>GO TO DASHBOARD</Button>
+            <p className="text-body-md text-on-surface-variant font-body">
+              You can view your payment status and membership details in your account.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -371,14 +474,14 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-surface px-margin-mobile py-12">
       <div className="max-w-2xl mx-auto">
-        <Link to="/" className="block font-display text-headline-lg text-primary-container mb-12 text-center">IRONHIDE</Link>
+        <Link to="/" className="block font-display text-headline-lg text-primary-container mb-12 text-center">IRONHIDE FITNESS</Link>
         {coupleLinkParam && coupleData && (
           <div className="mb-6 bg-surface-container border-l-4 border-primary-container p-4">
             <p className="font-label-sm text-label-sm text-primary-container uppercase tracking-widest">Annual Couple — Partner Sign Up</p>
             <p className="font-body text-body-md text-on-surface-variant mt-1">You're creating a linked partner account. No payment required.</p>
           </div>
         )}
-        <h1 className="font-display text-headline-md uppercase text-center mb-2">JOIN IRONHIDE</h1>
+        <h1 className="font-display text-headline-md uppercase text-center mb-2">JOIN IRONHIDE FITNESS</h1>
         <p className="text-body-md text-on-surface-variant text-center font-body mb-8">Step {step + 1} of {STEPS.length} — {STEPS[step]}</p>
         <StepIndicator current={step} />
 
@@ -566,6 +669,21 @@ export default function SignupPage() {
                     </div>
                   )}
 
+                  {paymentMethod === 'card' && (
+                    <div className="border border-green-600 bg-green-600/10 p-4 flex items-start gap-3">
+                      <span className="material-symbols-outlined text-green-400 text-xl shrink-0">shield</span>
+                      <div className="space-y-2">
+                        <p className="font-label-sm text-label-sm text-green-400 uppercase tracking-widest">Secure Checkout via Stripe</p>
+                        <p className="font-body text-body-md text-on-surface-variant">
+                          You'll be securely redirected to Stripe's checkout page. Your card details are encrypted and never stored by IronHide  Fitness.
+                        </p>
+                        <p className="font-body text-body-md text-on-surface-variant">
+                          <strong>After payment:</strong> You'll return here, and your membership will be activated automatically within a few moments.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {paymentMethod === 'cash' && (
                     <div className="border border-yellow-600 bg-yellow-600/10 p-4">
                       <p className="text-body-md font-body text-yellow-400">Please make payment at the gym reception at 114C Negombo Rd, Wattala. Your membership will be activated once payment is confirmed.</p>
@@ -601,10 +719,23 @@ export default function SignupPage() {
                     </label>
                   </div>
 
-                  {submitError && <p className="text-error text-body-md font-body">{submitError}</p>}
+                  {submitError && (
+                    <div className="border border-error bg-error/10 p-4 space-y-2">
+                      <p className="text-error text-body-md font-body">{submitError}</p>
+                      {submitError.includes('already registered') && (
+                        <Link to="/login" className="inline-flex items-center gap-2 text-primary-container hover:underline font-body text-body-md">
+                          Go to Login <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                        </Link>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
-              {coupleData && submitError && <p className="text-error text-body-md font-body">{submitError}</p>}
+              {coupleData && submitError && (
+                <div className="border border-error bg-error/10 p-4 space-y-2">
+                  <p className="text-error text-body-md font-body">{submitError}</p>
+                </div>
+              )}
             </div>
           )}
 

@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center px-margin-mobile">
       <div className="w-full max-w-md">
-        <Link to="/" className="block font-display text-headline-lg text-primary-container mb-12 text-center">IRONHIDE</Link>
+        <Link to="/" className="block font-display text-headline-lg text-primary-container mb-12 text-center">IRONHIDE FITNESS</Link>
         <div className="bg-surface-container border-t-2 border-primary-container p-8">
           <h1 className="font-display text-headline-md uppercase mb-2">RESET PASSWORD</h1>
           <p className="text-body-md text-on-surface-variant font-body mb-8">Enter your email and we'll send you a reset link.</p>

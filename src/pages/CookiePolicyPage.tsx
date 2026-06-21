@@ -18,7 +18,7 @@ export default function CookiePolicyPage() {
             <div className="space-y-4 font-body text-body-md text-on-surface-variant">
               <div>
                 <p className="text-on-surface font-display uppercase mb-1">Authentication Cookies</p>
-                <p>These cookies keep you logged in to your IronHide account via Firebase Auth. Without them, you would need to sign in every time you visit. These are strictly necessary for the app to function.</p>
+                <p>These cookies keep you logged in to your IronHide  Fitness account via Firebase Auth. Without them, you would need to sign in every time you visit. These are strictly necessary for the app to function.</p>
               </div>
               <div>
                 <p className="text-on-surface font-display uppercase mb-1">Preference Cookies</p>

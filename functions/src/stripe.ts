@@ -1,0 +1,302 @@
+import { onRequest } from 'firebase-functions/v2/https';
+import * as admin from 'firebase-admin';
+import Stripe from 'stripe';
+
+import { sendPaymentConfirmationEmail } from './emailservice';
+// Stripe keys from environment variables (set in functions/.env.local or Cloud Functions config)
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+
+// App URL — set in functions/.env or functions/.env.production
+const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
+
+// Check if running in emulator mode
+const isEmulator = process.env.FIRESTORE_EMULATOR_HOST !== undefined;
+
+const db = admin.firestore();
+
+
+
+// 1. Create Stripe Checkout Session 
+export const createStripeCheckoutSession = onRequest(
+  {
+    cors: true,  // Let Firebase handle CORS natively
+    invoker: 'public',  // Allow unauthenticated preflight (OPTIONS) requests
+    secrets: ['STRIPE_SECRET_KEY'],
+  },
+  async (req, res) => {
+    // Remove the corsHandler wrapper — no longer needed
+    // Only allow POST requests
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+      try {
+        console.log('[Stripe] Request received:', { method: req.method, path: req.path });
+        
+        // Verify authentication — get uid from Authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) {
+          console.error('[Stripe] Missing auth header');
+          res.status(401).json({ error: 'Unauthorized: Missing or invalid auth token' });
+          return;
+        }
+
+        const token = authHeader.substring(7);
+        let decodedToken;
+        try {
+          decodedToken = await admin.auth().verifyIdToken(token);
+          console.log('[Stripe] Token verified for uid:', decodedToken.uid);
+        } catch (tokenErr: any) {
+          // In emulator mode, try to decode without verification
+          if (isEmulator) {
+            try {
+              console.warn('[Stripe] Token verification failed in emulator, attempting to decode without verification');
+              // Decode JWT without verification (safe in emulator mode only)
+              const parts = token.split('.');
+              if (parts.length !== 3) {
+                throw new Error('Invalid token format');
+              }
+              const decoded = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+              decodedToken = decoded;
+              console.log('[Stripe] Token decoded (emulator mode) for uid:', decodedToken.uid);
+            } catch (decodeErr: any) {
+              console.error('[Stripe] Token decode failed:', decodeErr?.message);
+              res.status(401).json({ error: 'Unauthorized: Invalid token', details: decodeErr?.message });
+              return;
+            }
+          } else {
+            console.error('[Stripe] Token verification failed:', tokenErr?.message);
+            res.status(401).json({ error: 'Unauthorized: Invalid token', details: tokenErr?.message });
+            return;
+          }
+        }
+        
+
+        const uid = decodedToken.uid;
+
+        // Parse request body
+        const { planId, planName, amount } = req.body as {
+          planId: string;
+          planName: string;
+          amount: number;
+        };
+
+        console.log('[Stripe] Request body:', { planId, planName, amount });
+
+        // Validate request body
+        if (!planId || !planName || !amount) {
+          console.error('[Stripe] Missing required fields');
+          res.status(400).json({ error: 'Missing required fields: planId, planName, amount' });
+          return;
+        }
+
+        // Get Stripe secret key from environment variable
+        const stripeKey = STRIPE_SECRET_KEY;
+
+        if (!stripeKey) {
+          console.error('[Stripe] Stripe secret key not configured');
+          res.status(500).json({ 
+            error: 'Stripe is not configured. Please set STRIPE_SECRET_KEY.' 
+          });
+          return;
+        }
+
+        const stripe = new Stripe(stripeKey);
+        console.log('[Stripe] Stripe client initialized');
+
+        // Stripe requires amounts in smallest currency unit
+        // LKR has 2 decimal places, so multiply by 100
+        const amountInCents = Math.round(amount * 100);
+
+        console.log('[Stripe] Creating checkout session:', { amountInCents, planName });
+
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: 'lkr',
+                product_data: {
+                  name: `IronHide Fitness — ${planName} Membership`,
+                  description: `Membership plan: ${planName}`,
+                },
+                unit_amount: amountInCents,
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url: `${APP_URL}/verify-email?stripe=success&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${APP_URL}/renew?stripe=cancelled`,
+          metadata: {
+            uid,
+            planId,
+            planName,
+            amount: String(amount),
+          },
+          customer_email: decodedToken.email ?? undefined,
+        });
+
+        console.log('[Stripe] Session created:', session.id);
+        res.status(200).json({ sessionId: session.id, url: session.url });
+      } catch (err: any) {
+        console.error('[Stripe] createCheckoutSession error:', err?.message || err);
+        console.error('[Stripe] Error details:', err);
+        res.status(500).json({ 
+          error: 'Failed to create payment session. Please try again.',
+          details: err?.message || 'Unknown error'
+        });
+        }
+    }
+  );
+
+// 2. Stripe Webhook
+export const stripeWebhook = onRequest(
+  {
+    cors: true,
+    invoker: 'public',
+  },
+  async (req, res) => {
+    const sig = req.headers['stripe-signature'] as string;
+
+    // Use environment variables directly
+    const stripeKey = STRIPE_SECRET_KEY;
+    const webhookSecret = STRIPE_WEBHOOK_SECRET;
+
+    if (!stripeKey || !webhookSecret) {
+      console.error('[Stripe Webhook] Missing secrets');
+      res.status(500).json({ error: 'Webhook not configured' });
+      return;
+    }
+
+    const stripe = new Stripe(stripeKey);
+
+    let event: any;
+
+    try {
+      // Get raw body for signature verification
+      const rawBody = (req as unknown as { rawBody: Buffer }).rawBody || 
+                      Buffer.from(JSON.stringify(req.body));
+      
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        sig,
+        webhookSecret
+      );
+    } catch (err) {
+      console.error('[Stripe Webhook] Signature verification failed:', err);
+      res.status(400).send('Webhook signature verification failed.');
+      return;
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      try {
+        await handlePaymentSuccess(event.data.object as any);
+      } catch (err) {
+        console.error('[Stripe] handlePaymentSuccess failed:', err);
+        // Still return 200 to acknowledge receipt, Stripe will check payment status
+      }
+    }
+
+    if (event.type === 'payment_intent.payment_failed') {
+      const pi = event.data.object as any;
+      console.warn('[Stripe] Payment failed:', pi.id, pi.last_payment_error?.message);
+    }
+
+    res.status(200).json({ received: true });
+  }
+);
+
+// 3. Payment Success
+async function handlePaymentSuccess(session: any): Promise<void> {
+  const { uid, planId, planName, amount } = session.metadata ?? {};
+
+  if (!uid || !planName) {
+    console.error('[Stripe] Missing metadata in session:', session.id);
+    return;
+  }
+
+  const planAmount = Number(amount ?? 0);
+
+  const durationMonths: Record<string, number> = {
+    Daily: 0,
+    Monthly: 1,
+    Quarterly: 3,
+    Annual: 12,
+    'Annual — Couple': 12,
+  };
+
+  const expiry = new Date();
+  if (planName === 'Daily') {
+    expiry.setDate(expiry.getDate() + 1);
+  } else {
+    expiry.setMonth(expiry.getMonth() + (durationMonths[planName] ?? 1));
+  }
+
+  const memberRef = db.collection('members').doc(uid);
+  const batch = db.batch();
+
+  batch.update(memberRef, {
+    membershipStatus: 'active',
+    membershipTier: planName,
+    membershipExpiry: admin.firestore.Timestamp.fromDate(expiry),
+  });
+
+  const paymentRef = memberRef.collection('payments').doc();
+  batch.set(paymentRef, {
+    amount: planAmount,
+    plan: planName,
+    planId: planId ?? '',
+    method: 'card',
+    status: 'confirmed',
+    stripeSessionId: session.id,
+    stripePaymentIntentId: session.payment_intent ?? '',
+    receiptUrl: '',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const notifRef = memberRef.collection('notifications').doc();
+  batch.set(notifRef, {
+    message: `Your ${planName} membership has been activated via card payment! Expiry: ${expiry.toDateString()}.`,
+    type: 'payment_confirmed',
+    read: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await batch.commit();
+  console.log(`[Stripe] Payment confirmed — uid=${uid}, plan=${planName}, session=${session.id}`);
+  
+  try {
+  const memberSnap2 = await memberRef.get();
+  const memberData = memberSnap2.data();
+  if (memberData?.email) {
+    await sendPaymentConfirmationEmail(
+      memberData.email,
+      memberData.fullName ?? 'Member',
+      planName,
+      planAmount,
+      expiry
+    );
+  }
+} catch (err) {
+  console.warn('[Stripe] Payment confirmation email failed (non-fatal):', err);
+}
+  // FCM push notification (non-fatal)
+  try {
+    const memberSnap = await memberRef.get();
+    const tokens: string[] = memberSnap.data()?.fcmTokens ?? [];
+    if (tokens.length) {
+      await admin.messaging().sendEachForMulticast({
+        tokens,
+        notification: {
+          title: 'Payment Confirmed ✓',
+          body: `Your ${planName} membership is now active. Expires: ${expiry.toDateString()}.`,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[Stripe] FCM push failed (non-fatal):', err);
+  }
+}

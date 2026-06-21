@@ -3,9 +3,69 @@ import { PageWrapper } from '../components/layout/PageWrapper';
 import { AuthGuard } from '../components/layout/AuthGuard';
 import { Badge } from '../components/ui/Badge';
 import { getPayments } from '../lib/memberService';
+import { getStripeReturnStatus, clearStripeSession } from '../lib/stripe';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, formatCurrency } from '../lib/utils';
 import type { Payment } from '../types';
+
+function StripeReturnBanner() {
+  const status = getStripeReturnStatus();
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    if (status) {
+      clearStripeSession();
+      // Remove query params from URL without reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete('stripe');
+      url.searchParams.delete('session_id');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [status]);
+
+  if (!status || !visible) return null;
+
+  if (status === 'success') {
+    return (
+      <div className="mb-8 border border-green-500 bg-green-500/10 p-4 flex items-start gap-3 relative">
+        <span className="material-symbols-outlined text-green-400 text-2xl shrink-0">check_circle</span>
+        <div>
+          <p className="font-display text-body-lg uppercase text-green-400">Payment Successful</p>
+          <p className="font-body text-body-md text-on-surface-variant">
+            Your card payment has been received. Your membership is being activated — this may take a few moments.
+            You'll receive a notification once it's confirmed.
+          </p>
+        </div>
+        <button
+          onClick={() => setVisible(false)}
+          className="absolute top-3 right-3 text-on-surface-variant hover:text-on-surface"
+          aria-label="Dismiss"
+        >
+          <span className="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8 border border-yellow-500 bg-yellow-500/10 p-4 flex items-start gap-3 relative">
+      <span className="material-symbols-outlined text-yellow-400 text-2xl shrink-0">info</span>
+      <div>
+        <p className="font-display text-body-lg uppercase text-yellow-400">Payment Cancelled</p>
+        <p className="font-body text-body-md text-on-surface-variant">
+          Your payment was not completed. No charge has been made. You can try again from the Renew page.
+        </p>
+      </div>
+      <button
+        onClick={() => setVisible(false)}
+        className="absolute top-3 right-3 text-on-surface-variant hover:text-on-surface"
+        aria-label="Dismiss"
+      >
+        <span className="material-symbols-outlined text-sm">close</span>
+      </button>
+    </div>
+  );
+}
 
 function PaymentsContent() {
   const { user } = useAuth();
@@ -21,6 +81,8 @@ function PaymentsContent() {
     <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-12">
       <h1 className="font-display text-headline-lg uppercase mb-4">PAYMENT HISTORY</h1>
       <div className="w-24 h-1 bg-primary-container mb-12" />
+
+      <StripeReturnBanner />
 
       {loading ? (
         <div className="space-y-4">
@@ -39,20 +101,37 @@ function PaymentsContent() {
         </div>
       ) : payments.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface-variant opacity-40"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface-variant opacity-40">
+            <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+          </svg>
           <h3 className="font-display text-headline-md uppercase">No Payments Yet</h3>
-          <p className="text-body-lg text-on-surface-variant font-body max-w-sm">Your payment history will appear here once your membership is activated.</p>
+          <p className="text-body-lg text-on-surface-variant font-body max-w-sm">
+            Your payment history will appear here once your membership is activated.
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
           {payments.map(p => (
-            <div key={p.id} className="bg-surface-container border-l-4 border-primary-container p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div
+              key={p.id}
+              className="bg-surface-container border-l-4 border-primary-container p-6 flex flex-col md:flex-row md:items-center justify-between gap-4"
+            >
               <div className="flex flex-col gap-1">
                 <span className="font-display text-headline-md">{p.plan}</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">{p.method.replace('_', ' ')} · {formatDate(p.createdAt)}</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant uppercase">
+                  {p.method === 'card' ? 'Card (Stripe)' : p.method.replace('_', ' ')} · {formatDate(p.createdAt)}
+                </span>
+                {/* Show Stripe session ID for card payments as a subtle reference */}
+                {p.method === 'card' && (p as Payment & { stripeSessionId?: string }).stripeSessionId && (
+                  <span className="font-label-sm text-label-sm text-on-surface-variant opacity-50 font-mono text-xs">
+                    ref: {(p as Payment & { stripeSessionId?: string }).stripeSessionId?.slice(0, 20)}…
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-6">
-                <span className="font-display text-headline-md text-primary-container">{formatCurrency(p.amount)}</span>
+                <span className="font-display text-headline-md text-primary-container">
+                  {formatCurrency(p.amount)}
+                </span>
                 <Badge status={p.status} />
               </div>
             </div>

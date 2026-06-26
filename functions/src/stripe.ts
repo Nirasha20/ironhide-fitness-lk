@@ -157,8 +157,11 @@ export const stripeWebhook = onRequest(
   {
     cors: true,
     invoker: 'public',
+    secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
   },
   async (req, res) => {
+    console.log('[Stripe Webhook] Received webhook request');
+    
     const sig = req.headers['stripe-signature'] as string;
 
     // Use environment variables directly
@@ -185,6 +188,7 @@ export const stripeWebhook = onRequest(
         sig,
         webhookSecret
       );
+      console.log('[Stripe Webhook] Event verified:', event.type);
     } catch (err) {
       console.error('[Stripe Webhook] Signature verification failed:', err);
       res.status(400).send('Webhook signature verification failed.');
@@ -192,6 +196,7 @@ export const stripeWebhook = onRequest(
     }
 
     if (event.type === 'checkout.session.completed') {
+      console.log('[Stripe Webhook] Processing checkout.session.completed event');
       try {
         await handlePaymentSuccess(event.data.object as any);
       } catch (err) {
@@ -211,12 +216,27 @@ export const stripeWebhook = onRequest(
 
 // 3. Payment Success
 async function handlePaymentSuccess(session: any): Promise<void> {
+  console.log('[Stripe] handlePaymentSuccess called for session:', session.id);
+  console.log('[Stripe] Full session object:', JSON.stringify(session, null, 2));
+  console.log('[Stripe] Session payment_status:', session.payment_status);
+  console.log('[Stripe] Session metadata:', session.metadata);
+  
   const { uid, planId, planName, amount } = session.metadata ?? {};
 
   if (!uid || !planName) {
     console.error('[Stripe] Missing metadata in session:', session.id);
+    console.error('[Stripe] Metadata keys:', Object.keys(session.metadata || {}));
     return;
   }
+
+  // Only proceed if payment was actually successful
+  if (session.payment_status !== 'paid') {
+    console.warn('[Stripe] Session completed but payment not paid:', session.id, 'status:', session.payment_status);
+    console.warn('[Stripe] Expected "paid", got:', session.payment_status);
+    return;
+  }
+
+  console.log('[Stripe] Processing payment for uid:', uid, 'plan:', planName);
 
   const planAmount = Number(amount ?? 0);
 
@@ -236,6 +256,16 @@ async function handlePaymentSuccess(session: any): Promise<void> {
   }
 
   const memberRef = db.collection('members').doc(uid);
+  
+  // Verify member exists
+  const memberSnap = await memberRef.get();
+  if (!memberSnap.exists) {
+    console.error('[Stripe] Member not found for uid:', uid);
+    return;
+  }
+  
+  console.log('[Stripe] Member found, updating membership status to active...');
+  
   const batch = db.batch();
 
   batch.update(memberRef, {
@@ -265,8 +295,13 @@ async function handlePaymentSuccess(session: any): Promise<void> {
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  await batch.commit();
-  console.log(`[Stripe] Payment confirmed — uid=${uid}, plan=${planName}, session=${session.id}`);
+  try {
+    await batch.commit();
+    console.log(`[Stripe] Batch committed successfully. Member ${uid} membership activated.`);
+  } catch (batchErr: any) {
+    console.error('[Stripe] Batch commit failed:', batchErr?.message || batchErr);
+    throw batchErr;
+  }
   
   try {
   const memberSnap2 = await memberRef.get();

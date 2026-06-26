@@ -94,7 +94,6 @@ export async function initiateStripeCheckout(request: CheckoutSessionRequest): P
     } else if (err?.message?.includes('Failed to fetch')) {
       console.error('[Stripe] Network error details:', {
         url: `${CLOUD_FUNCTION_URL}/createStripeCheckoutSession`,
-        isLocalhost,
         hostname: window.location.hostname,
       });
       throw new Error('Could not connect to payment gateway. Make sure you have deployed the Cloud Functions or started the Firebase emulator.');

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { AuthGuard } from '../components/layout/AuthGuard';
 import { Badge } from '../components/ui/Badge';
@@ -36,10 +36,15 @@ function LinkedMemberCard({ uid }: { uid: string }) {
   );
 }
 
+
 function DashboardContent() {
+  const location = useLocation();
   const { member, loading } = useMember();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showActivatedToast, setShowActivatedToast] = useState(
+    (location.state as { stripeActivated?: boolean })?.stripeActivated === true
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -51,6 +56,17 @@ function DashboardContent() {
 
   return (
     <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-12">
+      {showActivatedToast && (
+  <div className="mb-6 flex items-center gap-3 border border-green-500 bg-green-500/10 p-4">
+    <span className="material-symbols-outlined text-green-400">check_circle</span>
+    <p className="font-body text-body-md text-green-400 flex-1">
+      Membership activated! Welcome to IronHide.
+    </p>
+    <button onClick={() => setShowActivatedToast(false)}>
+      <span className="material-symbols-outlined text-on-surface-variant text-sm">close</span>
+    </button>
+  </div>
+)}
       <div className="mb-12">
         <h1 className="font-display text-headline-lg uppercase mb-2" style={{ textShadow: '0 0 15px rgba(204,0,0,0.4)' }}>
           Welcome Back{member ? `, ${member.fullName.split(' ')[0]}` : ''}.

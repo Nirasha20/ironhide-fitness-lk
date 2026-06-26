@@ -640,7 +640,7 @@ export default function SignupPage() {
                   <div className="space-y-4">
                     <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Select Payment Method</p>
                     {([
-                      { method: 'card' as const, icon: 'credit_card', label: 'Credit/Debit Card', desc: 'Pay securely via PayHere' },
+                      { method: 'card' as const, icon: 'credit_card', label: 'Credit/Debit Card', desc: 'Pay securely via Stripe' },
                       { method: 'bank_transfer' as const, icon: 'account_balance', label: 'Bank Transfer', desc: 'Upload receipt for verification' },
                       { method: 'cash' as const, icon: 'payments', label: 'Cash at Gym', desc: 'Pay at reception' },
                     ]).map(opt => (

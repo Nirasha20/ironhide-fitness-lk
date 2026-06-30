@@ -1,8 +1,8 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
+import { generateAndSendInvoice } from './invoiceService';
 
-import { sendPaymentConfirmationEmail } from './emailservice';
 // Stripe keys from environment variables (set in functions/.env.local or Cloud Functions config)
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
@@ -157,7 +157,7 @@ export const stripeWebhook = onRequest(
   {
     cors: true,
     invoker: 'public',
-    secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+    secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'GMAIL_USER', 'GMAIL_PASS'],
   },
   async (req, res) => {
     console.log('[Stripe Webhook] Received webhook request');
@@ -209,6 +209,41 @@ export const stripeWebhook = onRequest(
       const pi = event.data.object as any;
       console.warn('[Stripe] Payment failed:', pi.id, pi.last_payment_error?.message);
     }
+    if (event.type === 'invoice.payment_succeeded') {
+  console.log('[Stripe Webhook] Processing invoice.payment_succeeded event');
+  try {
+    const invoice = event.data.object as any;
+    const uid = invoice.metadata?.uid ?? invoice.subscription_details?.metadata?.uid;
+
+    if (!uid) {
+      console.warn('[Stripe Webhook] No uid found in invoice metadata');
+    } else {
+      const memberRef = db.collection('members').doc(uid);
+      const memberSnap = await memberRef.get();
+      const memberData = memberSnap.data();
+
+      if (memberData?.email) {
+        await generateAndSendInvoice({
+          uid,
+          memberEmail:    memberData.email,
+          memberName:     memberData.fullName  ?? 'Member',
+          memberTIN:      memberData.tin       ?? '',
+          memberPhone:    memberData.phone     ?? '',
+          memberAddress:  memberData.address   ?? '—',
+          plan:           memberData.membershipTier ?? 'Membership',
+          amount:         (invoice.amount_paid ?? 0) / 100,
+          paymentMethod:  'card',
+          stripeSessionId: invoice.id,
+          deliveryDate:   new Date(),
+          placeOfSupply:  '114C Negombo Rd, Wattala, Sri Lanka',
+        });
+        console.log('[Stripe Webhook] Invoice sent for uid:', uid);
+      }
+    }
+  } catch (err) {
+    console.error('[Stripe Webhook] invoice.payment_succeeded handler failed:', err);
+  }
+}
 
     res.status(200).json({ received: true });
   }
@@ -304,20 +339,30 @@ async function handlePaymentSuccess(session: any): Promise<void> {
   }
   
   try {
-  const memberSnap2 = await memberRef.get();
-  const memberData = memberSnap2.data();
-  if (memberData?.email) {
-    await sendPaymentConfirmationEmail(
-      memberData.email,
-      memberData.fullName ?? 'Member',
-      planName,
-      planAmount,
-      expiry
-    );
+    const memberSnap2 = await memberRef.get();
+    const memberData = memberSnap2.data();
+
+    if (!memberData?.email) {
+      console.warn('[Stripe] No member email found; invoice email will not be sent.');
+    } else {
+      await generateAndSendInvoice({
+        uid,
+        memberEmail:    memberData.email,
+        memberName:     memberData.fullName   ?? 'Member',
+        memberTIN:      memberData.tin        ?? '',      // store TIN on member doc if you collect it
+        memberPhone:    memberData.phone      ?? '',
+        memberAddress:  memberData.address    ?? '—',
+        plan:           planName,
+        amount:         planAmount,                       // ex-VAT amount in LKR
+        paymentMethod:  'card',
+        stripeSessionId: session.id,
+        deliveryDate:   new Date(),
+        placeOfSupply:  '114C Negombo Rd, Wattala, Sri Lanka',
+      });
+    }
+  } catch (err) {
+    console.warn('[Stripe] Invoice generation/email failed (non-fatal):', err);
   }
-} catch (err) {
-  console.warn('[Stripe] Payment confirmation email failed (non-fatal):', err);
-}
   // FCM push notification (non-fatal)
   try {
     const memberSnap = await memberRef.get();

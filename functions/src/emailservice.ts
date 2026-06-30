@@ -1,29 +1,34 @@
 import * as nodemailer from 'nodemailer';
 
-// Gmail credentials — add these to functions/.env.local:
-//   GMAIL_USER=your.email@gmail.com
-//   GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
-const GMAIL_USER = process.env.GMAIL_USER || '';
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
-const FROM_EMAIL = process.env.FROM_EMAIL || GMAIL_USER;
 const APP_URL = process.env.APP_URL || 'http://localhost:5173';
 
-if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-  console.error('[EmailService] ⚠️  GMAIL_USER or GMAIL_APP_PASSWORD is not configured. Emails will NOT be sent.');
-  console.error('[EmailService] Add GMAIL_USER and GMAIL_APP_PASSWORD to functions/.env.local');
-} else {
-  console.log('[EmailService] ✅ Gmail configured. FROM_EMAIL:', FROM_EMAIL);
+// Read credentials lazily at call time (not at module load)
+// This ensures Firebase Secrets are available when functions execute
+function getCredentials() {
+  const user = (process.env.GMAIL_USER || '').trim();
+  const pass = (process.env.GMAIL_PASS || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+  return { user, pass };
 }
 
-function createTransporter() {
+export function createTransporter() {
+  const { user, pass } = getCredentials();
   return nodemailer.createTransport({
     service: 'gmail',
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
+    auth: { user, pass },
   });
 }
+
+export function isEmailConfigured(): boolean {
+  const { user, pass } = getCredentials();
+  return !!user && !!pass;
+}
+
+export function getMailFromEmail(): string {
+  return (process.env.GMAIL_USER || '').trim();
+}
+
+// Keep this for backward compatibility with invoiceService.ts
+export const MAIL_FROM_EMAIL = '';  // deprecated — use getMailFromEmail() instead
 
 /**
  * Send initial verification email to new member
@@ -32,7 +37,8 @@ export async function sendInitialVerificationEmail(
   userEmail: string,
   fullName: string
 ): Promise<void> {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+  const { user, pass } = getCredentials();
+  if (!user || !pass) {
     console.warn('[EmailService] Gmail not configured. Skipping email.');
     return;
   }
@@ -88,7 +94,7 @@ export async function sendInitialVerificationEmail(
 
   try {
     await createTransporter().sendMail({
-      from: `IronHide Fitness <${FROM_EMAIL}>`,
+      from: `IronHide Fitness <${user}>`,
       to: userEmail,
       subject: 'Verify Your Email - IronHide Fitness',
       html: htmlContent,
@@ -109,7 +115,8 @@ export async function sendVerificationEmailAfterPayment(
   paymentMethod: string,
   plan: string
 ): Promise<void> {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+  const { user, pass } = getCredentials();
+  if (!user || !pass) {
     console.warn('[EmailService] Gmail not configured. Skipping email.');
     return;
   }
@@ -161,9 +168,9 @@ export async function sendVerificationEmailAfterPayment(
 
   try {
     await createTransporter().sendMail({
-      from: `IronHide Fitness <${FROM_EMAIL}>`,
+      from: `IronHide Fitness <${user}>`,
       to: userEmail,
-      subject: 'Verify Your Email - IronHide Fitness',
+      subject: 'Membership Activated - IronHide Fitness',
       html: htmlContent,
     });
     console.log(`[EmailService] Verification email sent to ${userEmail}`);
@@ -183,7 +190,8 @@ export async function sendPaymentConfirmationEmail(
   amount: number,
   expiryDate: Date
 ): Promise<void> {
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+  const { user, pass } = getCredentials();
+  if (!user || !pass) {
     console.warn('[EmailService] Gmail not configured. Skipping email.');
     return;
   }
@@ -231,7 +239,7 @@ export async function sendPaymentConfirmationEmail(
 
   try {
     await createTransporter().sendMail({
-      from: `IronHide Fitness <${FROM_EMAIL}>`,
+      from: `IronHide Fitness <${user}>`,
       to: userEmail,
       subject: 'Payment Confirmed - IronHide Fitness Membership',
       html: htmlContent,

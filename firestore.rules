@@ -34,5 +34,23 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+     match /members/{uid}/invoices/{invoiceId} {
+      allow read:  if request.auth != null && request.auth.uid == uid;
+      allow write: if false;   // server-side only via Admin SDK
+    }
+ 
+    // ── Global invoices collection (admin use) ────────────────────────────────
+    // Only authenticated admins with a custom claim can read; no client writes.
+    match /invoices/{invoiceId} {
+      allow read:  if request.auth != null && request.auth.token.admin == true;
+      allow write: if false;
+    }
+ 
+    // ── Invoice serial number counters ────────────────────────────────────────
+    // Server-side only — no client access needed.
+    match /invoiceMeta/{doc=**} {
+      allow read, write: if false;
+    }
+ 
   }
 }

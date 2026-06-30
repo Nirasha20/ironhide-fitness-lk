@@ -48,7 +48,7 @@ export const checkMembershipExpiry = functions.pubsub
   });
 
 // 3. On payment confirmed — activate membership and send verification email if needed
-export const onPaymentConfirmed = functions.firestore
+export const onPaymentConfirmed = functions .runWith({ secrets: ["GMAIL_USER", "GMAIL_PASS"] }) .firestore
   .document('members/{uid}/payments/{paymentId}')
   .onUpdate(async (change: Change<QueryDocumentSnapshot>, context: EventContext) => {
     const before = change.before.data();

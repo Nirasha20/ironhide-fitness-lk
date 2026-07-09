@@ -16,8 +16,9 @@ export interface Member {
   photoUrl: string;
   lockerNumber: string;
   membershipTier: string;
-  membershipStatus: 'active' | 'expired' | 'pending_verification' | 'pending_cash';
+  membershipStatus: 'active' | 'expired' | 'pending_verification' | 'pending_cash' | 'rejected';
   membershipExpiry: Date;
+  role: 'customer' | 'admin';
   createdAt: Date;
 }
 

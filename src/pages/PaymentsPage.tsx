@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { AuthGuard } from '../components/layout/AuthGuard';
 import { Badge } from '../components/ui/Badge';
-import { getPayments } from '../lib/memberService';
+import { addPayment, getPayments } from '../lib/memberService';
 import { getStripeReturnStatus, clearStripeSession } from '../lib/stripe';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, formatCurrency } from '../lib/utils';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, storage } from '../lib/firebase';
 import type { Payment } from '../types';
 
 function StripeReturnBanner() {
@@ -71,11 +74,52 @@ function PaymentsContent() {
   const { user } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingPaymentId, setUploadingPaymentId] = useState<string | null>(null);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [uploadError, setUploadError] = useState('');
 
   useEffect(() => {
     if (!user) return;
     getPayments(user.uid).then(setPayments).finally(() => setLoading(false));
   }, [user]);
+
+  const handleReupload = async (payment: Payment, file: File | null) => {
+    if (!user || !file) return;
+
+    setUploadingPaymentId(payment.id);
+    setUploadMessage('');
+    setUploadError('');
+
+    try {
+      const receiptRef = ref(storage, `members/${user.uid}/receipts/${payment.id}-${Date.now()}.${file.name.split('.').pop() || 'jpg'}`);
+      await uploadBytes(receiptRef, file);
+      const receiptUrl = await getDownloadURL(receiptRef);
+      const nextStatus = payment.method === 'cash' ? 'pending_cash' : 'pending_verification';
+
+      const newPaymentId = await addPayment(user.uid, {
+        amount: payment.amount,
+        plan: payment.plan,
+        method: payment.method,
+        status: nextStatus,
+        receiptUrl,
+      });
+
+      await updateDoc(doc(db, 'members', user.uid), {
+        membershipStatus: nextStatus,
+      });
+
+      setPayments(current => [
+        { id: newPaymentId, amount: payment.amount, plan: payment.plan, method: payment.method, status: nextStatus, receiptUrl, createdAt: new Date() },
+        ...current,
+      ]);
+      setUploadMessage('Your new proof has been submitted for review.');
+    } catch (err: any) {
+      console.error('[PaymentsPage] reupload error:', err);
+      setUploadError(err?.message || 'Could not upload your proof. Please try again.');
+    } finally {
+      setUploadingPaymentId(null);
+    }
+  };
 
   return (
     <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-12">
@@ -83,6 +127,18 @@ function PaymentsContent() {
       <div className="w-24 h-1 bg-primary-container mb-12" />
 
       <StripeReturnBanner />
+
+      {uploadMessage && (
+        <div className="mb-6 border border-green-500 bg-green-500/10 p-4">
+          <p className="text-green-400 font-body text-body-md">{uploadMessage}</p>
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="mb-6 border border-error bg-error/10 p-4">
+          <p className="text-error font-body text-body-md">{uploadError}</p>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-4">
@@ -128,11 +184,37 @@ function PaymentsContent() {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-6">
-                <span className="font-display text-headline-md text-primary-container">
-                  {formatCurrency(p.amount)}
-                </span>
-                <Badge status={p.status} />
+              <div className="flex flex-col md:items-end gap-4">
+                <div className="flex items-center gap-6">
+                  <span className="font-display text-headline-md text-primary-container">
+                    {formatCurrency(p.amount)}
+                  </span>
+                  <Badge status={p.status} />
+                </div>
+
+                {p.status === 'rejected' && (p.method === 'bank_transfer' || p.method === 'cash') && (
+                  <div className="flex flex-col items-start md:items-end gap-2">
+                    <p className="font-body text-body-sm text-on-surface-variant">
+                      Your previous proof was rejected. Upload a fresh photo to submit it again.
+                    </p>
+                    <label className="inline-flex cursor-pointer items-center gap-2 border border-border-default bg-surface px-4 py-2 transition-all hover:border-primary-container">
+                      <span className="material-symbols-outlined text-primary-container text-lg">upload</span>
+                      <span className="font-body text-body-md">
+                        {uploadingPaymentId === p.id ? 'Uploading...' : 'Upload New Proof'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          e.currentTarget.value = '';
+                          void handleReupload(p, file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
           ))}

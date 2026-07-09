@@ -1,26 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { isBiometricAvailable, authenticateWithBiometric } from '../lib/biometrics';
+import { useAuth } from '../hooks/useAuth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { user, role, loading: authLoading } = useAuth();
   const [form, setForm] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   useEffect(() => { isBiometricAvailable().then(setBiometricAvailable); }, []);
 
+  useEffect(() => {
+    if (!user || authLoading || role === null) return;
+    navigate(role === 'admin' ? '/admin' : '/dashboard', { replace: true });
+  }, [user, role, authLoading, navigate]);
+
   const handleBiometric = async () => {
     const ok = await authenticateWithBiometric();
     if (!ok) { setErrors({ submit: 'Biometric authentication failed.' }); return; }
-    // Biometric confirmed — user still needs stored credentials
-    // For now navigate to dashboard if already authenticated
-    navigate('/dashboard');
+    if (user && role !== null) {
+      navigate(role === 'admin' ? '/admin' : '/dashboard');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,16 +38,19 @@ export default function LoginPage() {
     if (!form.password) errs.password = 'Password is required';
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject({ code: 'auth/network-timeout' }), 15000)
       );
-      await Promise.race([
+      const result = await Promise.race([
         signInWithEmailAndPassword(auth, form.email.trim(), form.password),
         timeout,
       ]);
-      navigate('/dashboard');
+
+      const memberDoc = await getDoc(doc(db, 'members', result.user.uid));
+      const isAdmin = memberDoc.exists() && memberDoc.data()?.role === 'admin';
+      navigate(isAdmin ? '/admin' : '/dashboard');
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code ?? '';
       const msg = code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found'
@@ -51,7 +62,7 @@ export default function LoginPage() {
             : 'Sign in failed. Please try again.';
       setErrors({ submit: msg });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -92,7 +103,7 @@ export default function LoginPage() {
               <Link to="/forgot-password" className="text-primary-container text-label-sm font-label-sm hover:underline self-end mt-1">Forgot password?</Link>
             </div>
             {errors.submit && <p className="text-error text-body-md font-body">{errors.submit}</p>}
-            <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full">SIGN IN</Button>
+            <Button type="submit" variant="primary" size="lg" loading={submitting} className="w-full">SIGN IN</Button>
             {biometricAvailable && (
               <button type="button" onClick={handleBiometric}
                 className="w-full border border-border-default text-on-surface py-4 font-display text-headline-md uppercase hover:border-primary-container transition-all flex items-center justify-center gap-3">

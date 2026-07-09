@@ -30,7 +30,7 @@ function LinkedMemberCard({ uid }: { uid: string }) {
         <p className="font-display text-headline-md">{partner.fullName}</p>
       </div>
       <div className="ml-auto">
-        <Badge status={partner.membershipStatus as 'active' | 'expired' | 'pending_verification' | 'pending_cash'} />
+        <Badge status={partner.membershipStatus as 'active' | 'expired' | 'pending_verification' | 'pending_cash' | 'rejected'} />
       </div>
     </div>
   );

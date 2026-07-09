@@ -2,6 +2,8 @@ import * as functions from 'firebase-functions';
 import type { QueryDocumentSnapshot, DocumentSnapshot } from 'firebase-functions/v1/firestore';
 import type { EventContext, Change } from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { generateAndSendInvoice } from './invoiceService';
+import { sendRejectionEmail } from './invoiceService';
 
 
 
@@ -56,6 +58,7 @@ export const onPaymentConfirmed = functions .runWith({ secrets: ["GMAIL_USER", "
     if (before.status === after.status) return;
     if (after.status !== 'confirmed') return;
     const uid = context.params.uid;
+    const paymentId = context.params.paymentId;
     const durationMonths: Record<string, number> = { Monthly: 1, Quarterly: 3, Annual: 12 };
     const months = durationMonths[after.plan as string] ?? 1;
     const expiry = new Date();
@@ -84,6 +87,30 @@ export const onPaymentConfirmed = functions .runWith({ secrets: ["GMAIL_USER", "
       } catch (err) {
         console.error(`[onPaymentConfirmed] Error sending verification for ${uid}:`, err);
       }
+    }
+    
+    // Send invoice email for manually-confirmed bank transfer / cash payments
+    try {
+      const method = after.method as string | undefined;
+      if (memberData?.email && (method === 'bank_transfer' || method === 'cash')) {
+        await generateAndSendInvoice({
+          uid,
+          memberEmail: memberData.email,
+          memberName: memberData.fullName ?? 'Member',
+          memberTIN: memberData.tin ?? '',
+          memberPhone: memberData.phone ?? '',
+          memberAddress: memberData.address ?? '—',
+          plan: after.plan ?? 'Membership',
+          amount: Number(after.amount ?? 0),
+          paymentMethod: method === 'cash' ? 'cash' : 'bank_transfer',
+          stripeSessionId: after.stripeSessionId ?? undefined,
+          deliveryDate: new Date(),
+          placeOfSupply: '114C Negombo Rd, Wattala, Sri Lanka',
+        });
+        console.log(`[onPaymentConfirmed] Invoice sent to ${memberData.email} for uid ${uid}, payment ${paymentId}`);
+      }
+    } catch (err) {
+      console.warn('[onPaymentConfirmed] Invoice generation/email failed (non-fatal):', err);
     }
     
     await db.collection('members').doc(uid).collection('notifications').add({
@@ -134,7 +161,9 @@ export const onCapacityThreshold = functions.firestore
 
 // DEPLOY AFTER BLAZE UPGRADE
 // 6. Payment status notifications — bank transfer approved/rejected + cash confirmed
-export const onPaymentStatusChanged = functions.firestore
+export const onPaymentStatusChanged = functions
+  .runWith({ secrets: ["GMAIL_USER", "GMAIL_PASS"] })
+  .firestore
   .document('members/{uid}/payments/{paymentId}')
   .onUpdate(async (change: Change<QueryDocumentSnapshot>, context: EventContext) => {
     const before = change.before.data() ?? {};
@@ -143,10 +172,12 @@ export const onPaymentStatusChanged = functions.firestore
     if (before.status === after.status) return;
 
     const uid = context.params.uid as string;
+    const paymentId = context.params.paymentId as string;
 
     const memberSnap = await db.collection('members').doc(uid).get();
+    const memberData = memberSnap.data();
     const fcmToken = memberSnap.data()?.fcmToken as string | undefined;
-    if (!fcmToken) return;
+    
 
     let title = '';
     let body = '';
@@ -160,12 +191,30 @@ export const onPaymentStatusChanged = functions.firestore
     } else if (after.status === 'rejected') {
       title = 'Payment Not Verified';
       body = 'Your bank transfer receipt could not be verified. Please contact us at 070 322 2211.';
+      // Send rejection email
+      if (memberData?.email) {
+        try {
+          await sendRejectionEmail({
+            memberEmail: memberData.email,
+            memberName: memberData.fullName ?? 'Member',
+            paymentId,
+            plan: after.plan ?? 'Membership',
+            amount: Number(after.amount ?? 0),
+            method: after.method ?? 'bank_transfer',
+            rejectionNote: after.rejectionNote ?? 'Please contact support for details.',
+          });
+        } catch (err) {
+          console.warn('[onPaymentStatusChanged] Rejection email failed (non-fatal):', err);
+        }
+      }
     } else {
       return;
     }
+    if (fcmToken) {
+      await admin.messaging().send({ token: fcmToken, notification: { title, body } });
+    }
 
-    await admin.messaging().send({ token: fcmToken, notification: { title, body } });
-
+    
     await db.collection('members').doc(uid).collection('notifications').add({
       message: body,
       type: after.status === 'rejected' ? 'payment_rejected' : 'payment_confirmed',
@@ -175,7 +224,7 @@ export const onPaymentStatusChanged = functions.firestore
   });
 
 // 6. Callable function for admin to confirm payment manually and send verification email
-export const confirmPaymentAndVerifyEmail = functions.https.onCall(
+export const confirmPaymentAndVerifyEmail = functions.runWith({ secrets: ["GMAIL_USER", "GMAIL_PASS"] }).https.onCall(
   async (data: { uid: string; paymentId: string }) => {
     const { uid, paymentId } = data;
     
@@ -271,6 +320,7 @@ export const confirmPaymentAndVerifyEmail = functions.https.onCall(
     } catch (err) {
       console.warn('[confirmPaymentAndVerifyEmail] FCM notification failed:', err);
     }
+
 
     return { success: true, message: 'Payment confirmed and email verified' };
   }

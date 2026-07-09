@@ -5,7 +5,7 @@ const plans = [
   {
     tier: 'Trial',
     name: 'DAILY',
-    price: '500',
+    price: '2,500',
     period: '/DAY',
     features: [
       { text: '24/7 Access', available: true },
@@ -16,7 +16,7 @@ const plans = [
   {
     tier: 'Foundation',
     name: 'MONTHLY',
-    price: '5,000',
+    price: '15,000',
     period: '/MO',
     features: [
       { text: '24/7 Access', available: true },
@@ -28,7 +28,7 @@ const plans = [
   {
     tier: 'Elite',
     name: 'ANNUAL',
-    price: '48,000',
+    price: '165,000',
     period: '/YR',
     features: [
       { text: 'Unlimited Access', available: true },
@@ -41,7 +41,7 @@ const plans = [
   {
     tier: 'Duo',
     name: 'ANNUAL — COUPLE',
-    price: '80,000',
+    price: '310,000',
     period: '/YR',
     features: [
       { text: 'Everything in Annual', available: true },

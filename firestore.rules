@@ -2,37 +2,61 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    // Reads the caller's OWN member doc to check role — this is the
+    // Firestore-native substitute for a custom claim.
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function roleUnchanged() {
+      return !('role' in request.resource.data) ||
+        request.resource.data.role == resource.data.role;
+    }
+
     // Members can read/write their own document and all sub-collections
     match /members/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      // Owner can read/write their own doc, but can NEVER touch the role field.
+      // Admin can read/write ANY member doc, including role.
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && request.resource.data.role == 'customer';
+      allow update: if (isOwner(uid) && roleUnchanged()) || isAdmin();
+      allow delete: if isAdmin();
 
       match /{subcollection}/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if isOwner(uid) || isAdmin();
       }
     }
 
     // Announcements — public read
     match /announcements/{id} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     // Membership plans — public read
     match /membershipPlans/{id} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     // Contact enquiries — anyone can create
     match /contactEnquiries/{id} {
       allow create: if true;
-      allow read, update, delete: if false;
+      allow read, update, delete: if isAdmin();
     }
 
     // Gym occupancy — public read
     match /gym_meta/{id} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
      match /members/{uid}/invoices/{invoiceId} {
       allow read:  if request.auth != null && request.auth.uid == uid;

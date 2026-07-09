@@ -38,7 +38,25 @@ export interface InvoiceData extends InvoiceInput {
   createdAt:           admin.firestore.FieldValue;
   status:              'issued';
 }
+export interface RejectionEmailInput {
+  memberEmail: string;
+  memberName: string;
+  paymentId: string;
+  plan: string;
+  amount: number;
+  method: string;
+  rejectionNote: string;
+}
 
+function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const result = { ...obj };
+  for (const key of Object.keys(result)) {
+    if (result[key] === undefined) {
+      delete result[key];
+    }
+  }
+  return result;
+}
 
 export async function generateAndSendInvoice(input: InvoiceInput): Promise<string> {
   const db = admin.firestore();
@@ -59,7 +77,7 @@ export async function generateAndSendInvoice(input: InvoiceInput): Promise<strin
   // 4. Total in words (gazette spec §4.1(g)(iv))
   const totalAmountWords = numberToWords(totalAmount) + ' Sri Lankan Rupees Only';
 
-  const invoiceData: InvoiceData = {
+  const invoiceData: InvoiceData = stripUndefined({
     ...input,
     invoiceSerialNumber: serialNumber,
     invoiceDate:         invoiceDateFmt,
@@ -68,8 +86,8 @@ export async function generateAndSendInvoice(input: InvoiceInput): Promise<strin
     totalAmount,
     totalAmountWords,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    status: 'issued',
-  };
+    status: 'issued' as const,
+  });
 
   // 5. Write to Firestore (two locations for flexibility)
   const memberInvoiceRef = db
@@ -81,7 +99,7 @@ export async function generateAndSendInvoice(input: InvoiceInput): Promise<strin
 
   const batch = db.batch();
   batch.set(memberInvoiceRef, invoiceData);
-  batch.set(globalInvoiceRef, { ...invoiceData, memberId: input.uid });
+  batch.set(globalInvoiceRef, stripUndefined({ ...invoiceData, memberId: input.uid }));
   await batch.commit();
 
   console.log(`[Invoice] Stored invoice ${serialNumber} for member ${input.uid}`);
@@ -180,25 +198,20 @@ async function sendInvoiceEmail(inv: InvoiceData): Promise<void> {
   }
 }
 
-//  HTML invoice builder
-// Layout matches the gazette Annexure I sample (§8)
-
 function buildInvoiceHtml(inv: InvoiceData): string {
-  const fmt = (n: number) =>
-    'LKR ' + n.toLocaleString('en-LK', { maximumFractionDigits: 0 });
-
+  const fmt = (n: number) => 'LKR ' + n.toLocaleString('en-LK', { maximumFractionDigits: 0 });
   const paymentLabel: Record<string, string> = {
-    card:          'Credit/Debit Card',
+    card: 'Credit/Debit Card',
     bank_transfer: 'Bank Transfer',
-    cash:          'Cash',
-    mobile:        'Mobile Payment',
-    online:        'Online Payment',
+    cash: 'Cash',
+    mobile: 'Mobile Payment',
+    online: 'Online Payment',
   };
 
   return `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tax Invoice ${inv.invoiceSerialNumber}</title>
   <style>
@@ -496,5 +509,72 @@ function buildInvoiceHtml(inv: InvoiceData): string {
 
 </div>
 </body>
+</html>`;
+}
+
+export async function sendRejectionEmail(input: RejectionEmailInput): Promise<void> {
+  if (!isEmailConfigured()) {
+    console.warn('[Rejection] Gmail not configured — skipping email');
+    return;
+  }
+
+  const transporter = createTransporter();
+  const html = buildRejectionEmailHtml(input);
+
+  try {
+    await transporter.verify();
+    await transporter.sendMail({
+      from: `IronHide Fitness <${process.env.GMAIL_USER || ''}>`,
+      to: input.memberEmail,
+      subject: 'Action needed — your recent payment could not be verified',
+      html,
+    });
+    console.log(`[Rejection] Email sent to ${input.memberEmail} for payment ${input.paymentId}`);
+  } catch (err) {
+    console.error('[Rejection] Failed to send rejection email:', err);
+    throw err;
+  }
+}
+
+function buildRejectionEmailHtml(input: RejectionEmailInput): string {
+  const fmt = (n: number) => 'LKR ' + n.toLocaleString('en-LK', { maximumFractionDigits: 0 });
+  const methodLabel: Record<string, string> = {
+    card: 'Credit/Debit Card',
+    bank_transfer: 'Bank Transfer',
+    cash: 'Cash',
+  };
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Payment Not Verified</title>
+    <style>
+      body { font-family: Arial, sans-serif; color: #222; background: #f5f5f5; margin: 0; padding: 24px; }
+      .wrapper { max-width: 700px; margin: 0 auto; background: #fff; border: 1px solid #ddd; }
+      .title { text-align: center; padding: 16px; border-bottom: 2px solid #222; }
+      .content { padding: 20px; line-height: 1.6; }
+      .note { margin-top: 12px; padding: 12px; background: #f9f9f9; border-left: 3px solid #cc0000; }
+      .footer { padding: 12px; font-size: 12px; color: #666; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="title">
+        <h1 style="margin: 0; font-size: 20px;">IRONHIDE FITNESS</h1>
+        <h2 style="margin: 4px 0 0; font-size: 14px;">PAYMENT NOT VERIFIED</h2>
+      </div>
+      <div class="content">
+        <p>Hi ${input.memberName},</p>
+        <p>We reviewed your ${methodLabel[input.method] || input.method} payment for ${input.plan} (${fmt(input.amount)}) and couldn't verify it.</p>
+        <div class="note">
+          <strong>Reason from our team:</strong><br />${input.rejectionNote}
+        </div>
+        <p>Please resubmit your payment or contact us if you believe this is an error.</p>
+      </div>
+      <div class="footer">IronHide Fitness • 114C Negombo Rd, Wattala • +94 70 322 2211</div>
+    </div>
+  </body>
 </html>`;
 }

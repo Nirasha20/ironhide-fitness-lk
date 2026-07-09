@@ -110,17 +110,17 @@ export default function SignupPage() {
     try {
       const data = await getMembershipPlans();
       setPlans(data.length ? data : [
-        { id: '1', name: 'Daily', duration: '1 day', price: 500, features: ['24/7 Access', 'Locker Room'], isActive: true },
-        { id: '2', name: 'Monthly', duration: '1 month', price: 5000, features: ['24/7 Access', 'Locker Room', 'Standard Equipment'], isActive: true },
-        { id: '3', name: 'Annual', duration: '12 months', price: 48000, features: ['Unlimited Access', 'PT Sessions', 'Apparel Kit', 'VIP Lounge'], isActive: true },
-        { id: '4', name: 'Annual — Couple', duration: '12 months', price: 80000, features: ['Everything in Annual', 'Partner Account Included', 'Shared Expiry'], isActive: true },
+        { id: '1', name: 'Daily', duration: '1 day', price: 2500, features: ['24/7 Access', 'Locker Room'], isActive: true },
+        { id: '2', name: 'Monthly', duration: '1 month', price: 15000, features: ['24/7 Access', 'Locker Room', 'Standard Equipment'], isActive: true },
+        { id: '3', name: 'Annual', duration: '12 months', price: 165000, features: ['Unlimited Access', 'PT Sessions', 'Apparel Kit', 'VIP Lounge'], isActive: true },
+        { id: '4', name: 'Annual — Couple', duration: '12 months', price: 310000, features: ['Everything in Annual', 'Partner Account Included', 'Shared Expiry'], isActive: true },
       ]);
     } catch {
       setPlans([
-        { id: '1', name: 'Daily', duration: '1 day', price: 500, features: ['24/7 Access', 'Locker Room'], isActive: true },
-        { id: '2', name: 'Monthly', duration: '1 month', price: 5000, features: ['24/7 Access', 'Locker Room', 'Standard Equipment'], isActive: true },
-        { id: '3', name: 'Annual', duration: '12 months', price: 48000, features: ['Unlimited Access', 'PT Sessions', 'Apparel Kit', 'VIP Lounge'], isActive: true },
-        { id: '4', name: 'Annual — Couple', duration: '12 months', price: 80000, features: ['Everything in Annual', 'Partner Account Included', 'Shared Expiry'], isActive: true },
+        { id: '1', name: 'Daily', duration: '1 day', price: 2500, features: ['24/7 Access', 'Locker Room'], isActive: true },
+        { id: '2', name: 'Monthly', duration: '1 month', price: 15000, features: ['24/7 Access', 'Locker Room', 'Standard Equipment'], isActive: true },
+        { id: '3', name: 'Annual', duration: '12 months', price: 165000, features: ['Unlimited Access', 'PT Sessions', 'Apparel Kit', 'VIP Lounge'], isActive: true },
+        { id: '4', name: 'Annual — Couple', duration: '12 months', price: 310000, features: ['Everything in Annual', 'Partner Account Included', 'Shared Expiry'], isActive: true },
       ]);
     } finally {
       setPlansLoading(false);

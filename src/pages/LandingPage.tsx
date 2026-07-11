@@ -9,7 +9,7 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="relative h-screen w-full flex items-start pt-16 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img src={GYM_IMAGE} alt="IronHide Gym" className="w-full h-full object-cover" />
+          <img src={GYM_IMAGE} alt="IronHide Fitness Gym" className="w-full h-full object-cover" />
           <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.8) 100%)' }} />
         </div>
         <div className="relative z-10 w-full max-w-container mx-auto px-margin-mobile md:px-margin-desktop text-center md:text-left">
@@ -48,7 +48,7 @@ export default function LandingPage() {
       {/* Stats Strip */}
       <section className="py-section-gap px-margin-mobile md:px-margin-desktop max-w-container mx-auto">
         <div className="flex flex-col items-center mb-16">
-          <h2 className="font-display text-headline-lg text-on-surface mb-4">WHY IRONHIDE</h2>
+          <h2 className="font-display text-headline-lg text-on-surface mb-4">WHY IRONHIDE FITNESS</h2>
           <div className="w-24 h-1 bg-primary-container" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-gutter">

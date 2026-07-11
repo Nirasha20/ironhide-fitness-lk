@@ -264,7 +264,7 @@ function SettingsContent() {
         <div className="border-2 border-error p-6 space-y-4">
           <div>
             <p className="font-label-sm text-label-sm text-error uppercase tracking-widest mb-1">Delete Account</p>
-            <p className="font-body text-body-md text-on-surface-variant">Permanently delete your IronHide account. This cannot be undone.</p>
+            <p className="font-body text-body-md text-on-surface-variant">Permanently delete your IronHide Fitness account. This cannot be undone.</p>
           </div>
           {!showDeleteConfirm ? (
             <Button variant="primary" onClick={() => setShowDeleteConfirm(true)}>

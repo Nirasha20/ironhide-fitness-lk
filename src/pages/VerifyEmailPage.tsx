@@ -56,7 +56,7 @@ export default function VerifyEmailPage() {
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center px-4">
       <div className="w-full max-w-md text-center">
-        <div className="font-display text-headline-lg text-primary-container mb-12">IRONHIDE</div>
+        <div className="font-display text-headline-lg text-primary-container mb-12">IRONHIDE FITNESS</div>
         <div className="bg-surface-container border-t-2 border-primary-container p-8 space-y-6">
           <div className="flex justify-center mb-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#cc0000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

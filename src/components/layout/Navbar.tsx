@@ -74,7 +74,7 @@ export function Navbar() {
   return (
     <header ref={menuRef} className="sticky top-0 z-50 border-b border-surface-container-highest bg-surface" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop py-4 max-w-container mx-auto">
-        <Link to="/" className="font-display text-headline-md text-on-surface uppercase tracking-wider">IRONHIDE</Link>
+        <Link to="/" className="font-display text-headline-md text-on-surface uppercase tracking-wider">IRONHIDE FITNESS</Link>
 
         <nav className="hidden md:flex items-center gap-8">
           {navLinks.map(link => (

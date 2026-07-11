@@ -22,7 +22,7 @@ export default function HelpPage() {
             <h2 className="font-display text-primary-container uppercase text-headline-md mb-6">Getting Started</h2>
             <div className="space-y-5">
               <QA
-                question="How do I join IronHide?"
+                question="How do I join IronHide Fitness?"
                 answer={
                   <ol className="list-decimal list-inside space-y-1 pl-1">
                     <li>Click "Join Now" on the homepage or visit the app</li>

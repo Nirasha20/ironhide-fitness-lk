@@ -337,7 +337,7 @@ export default function SignupPage() {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center px-margin-mobile">
         <div className="max-w-lg text-center space-y-6">
-          <div className="font-display text-headline-lg text-primary-container">IRONHIDE</div>
+          <div className="font-display text-headline-lg text-primary-container">IRONHIDE FITNESS</div>
           <div className="bg-surface-container border-t-2 border-primary-container p-8 space-y-6">
             <span className="material-symbols-outlined text-red-400 text-6xl block">link_off</span>
             <h1 className="font-display text-headline-lg uppercase">Invalid Invite Link</h1>
@@ -371,14 +371,14 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-surface px-margin-mobile py-12">
       <div className="max-w-2xl mx-auto">
-        <Link to="/" className="block font-display text-headline-lg text-primary-container mb-12 text-center">IRONHIDE</Link>
+        <Link to="/" className="block font-display text-headline-lg text-primary-container mb-12 text-center">IRONHIDE FITNESS</Link>
         {coupleLinkParam && coupleData && (
           <div className="mb-6 bg-surface-container border-l-4 border-primary-container p-4">
             <p className="font-label-sm text-label-sm text-primary-container uppercase tracking-widest">Annual Couple — Partner Sign Up</p>
             <p className="font-body text-body-md text-on-surface-variant mt-1">You're creating a linked partner account. No payment required.</p>
           </div>
         )}
-        <h1 className="font-display text-headline-md uppercase text-center mb-2">JOIN IRONHIDE</h1>
+        <h1 className="font-display text-headline-md uppercase text-center mb-2">JOIN IRONHIDE FITNESS</h1>
         <p className="text-body-md text-on-surface-variant text-center font-body mb-8">Step {step + 1} of {STEPS.length} — {STEPS[step]}</p>
         <StepIndicator current={step} />
 

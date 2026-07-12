@@ -14,9 +14,9 @@ export default function LandingPage() {
         </div>
         <div className="relative z-10 w-full max-w-container mx-auto px-margin-mobile md:px-margin-desktop text-center md:text-left">
           <h1 className="font-display text-[60px] md:text-display-lg leading-tight mb-8">
-            <span className="text-on-surface block">WHERE</span>
-            <span className="text-primary-container block -mt-4">CHAMPIONS</span>
-            <span className="text-on-surface block -mt-4">ARE BUILT</span>
+            <span className="text-on-surface block">STRONGER</span>
+            <span className="text-primary-container block -mt-4">THAN</span>
+            <span className="text-on-surface block -mt-4">YESTERDAY</span>
           </h1>
           <div className="flex flex-col md:flex-row gap-4 justify-center md:justify-start">
             <Link to="/signup" className="bg-primary-container text-on-primary-container px-10 py-4 font-display text-headline-md tracking-widest crimson-glow transition-all active:scale-95 hover:scale-105 text-center">

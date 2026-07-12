@@ -30,6 +30,10 @@ service cloud.firestore {
       allow update: if (isOwner(uid) && roleUnchanged()) || isAdmin();
       allow delete: if isAdmin();
 
+       match /partners/{partnerId} {
+    allow read, write: if isOwner(uid) || isAdmin();
+       }
+
       match /{subcollection}/{docId} {
         allow read, write: if isOwner(uid) || isAdmin();
       }

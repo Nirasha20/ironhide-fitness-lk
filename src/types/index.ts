@@ -22,6 +22,24 @@ export interface Member {
   createdAt: Date;
 }
 
+export interface Partner {
+  id: string;
+  fullName: string;
+  dob: Date;
+  gender: string;
+  phone: string;
+  address: string;
+  emergencyContact: { name: string; phone: string };
+  height: number | null;
+  weight: number | null;
+  bmi: number | null;
+  medicalConditions: string;
+  medications: string;
+  injuries: string;
+  photoUrl: string;
+  createdAt: Date;
+}
+
 export interface Payment {
   id: string;
   amount: number;

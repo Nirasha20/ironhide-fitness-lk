@@ -121,6 +121,10 @@ function PaymentsContent() {
     }
   };
 
+  const latestRejectedPayment = payments.find(
+    (payment) => payment.status === 'rejected'
+  );
+
   return (
     <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-12">
       <h1 className="font-display text-headline-lg uppercase mb-4">PAYMENT HISTORY</h1>
@@ -192,7 +196,7 @@ function PaymentsContent() {
                   <Badge status={p.status} />
                 </div>
 
-                {p.status === 'rejected' && (p.method === 'bank_transfer' || p.method === 'cash') && (
+                {p.status === 'rejected' && p.id === latestRejectedPayment?.id && (
                   <div className="flex flex-col items-start md:items-end gap-2">
                     <p className="font-body text-body-sm text-on-surface-variant">
                       Your previous proof was rejected. Upload a fresh photo to submit it again.

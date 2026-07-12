@@ -6,10 +6,10 @@ import { DashboardSkeleton } from '../components/ui/Skeleton';
 import { useMember } from '../hooks/useMember';
 import { formatDate } from '../lib/utils';
 import { useEffect, useState } from 'react';
-import { getNotifications, getMember } from '../lib/memberService';
+import { getNotifications, getMember, getPartners } from '../lib/memberService';
 import { useAuth } from '../hooks/useAuth';
 import { registerFCMToken } from '../lib/notifications';
-import type { Notification } from '../types';
+import type { Notification, Partner } from '../types';
 
 function LinkedMemberCard({ uid }: { uid: string }) {
   const [partner, setPartner] = useState<{ fullName: string; membershipStatus: string } | null>(null);
@@ -42,6 +42,8 @@ function DashboardContent() {
   const { member, loading } = useMember();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [partner, setPartner] = useState<Partner | null>(null);
+  const [partnerLoading, setPartnerLoading] = useState(false);
   const [showActivatedToast, setShowActivatedToast] = useState(
     (location.state as { stripeActivated?: boolean })?.stripeActivated === true
   );
@@ -51,6 +53,20 @@ function DashboardContent() {
     getNotifications(user.uid).then(n => setNotifications(n.slice(0, 5))).catch(() => {});
     registerFCMToken(user.uid).catch(() => {});
   }, [user]);
+
+  useEffect(() => {
+    if (!member || !member.uid || !member.membershipTier?.includes('Couple')) {
+      setPartner(null);
+      setPartnerLoading(false);
+      return;
+    }
+
+    setPartnerLoading(true);
+    getPartners(member.uid)
+      .then(partners => setPartner(partners[0] ?? null))
+      .catch(() => setPartner(null))
+      .finally(() => setPartnerLoading(false));
+  }, [member]);
 
   if (loading) return <DashboardSkeleton />;
 
@@ -80,12 +96,25 @@ function DashboardContent() {
           <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
             <span className="font-display text-[120px] leading-none uppercase select-none">CHAMPION</span>
           </div>
-          <div className="w-48 h-48 flex-shrink-0 border-4 border-primary-container overflow-hidden" style={{ boxShadow: '0 0 10px #cc0000' }}>
-            {member?.photoUrl ? (
-              <img src={member.photoUrl} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-surface-variant text-6xl">person</span>
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-48 h-48 flex-shrink-0 border-4 border-primary-container overflow-hidden" style={{ boxShadow: '0 0 10px #cc0000' }}>
+              {member?.photoUrl ? (
+                <img src={member.photoUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-surface-variant text-6xl">person</span>
+                </div>
+              )}
+            </div>
+            {member?.membershipTier?.includes('Couple') && (
+              <div className="w-48 h-48 flex-shrink-0 border-4 border-primary-container overflow-hidden" style={{ boxShadow: '0 0 10px #cc0000' }}>
+                {partner?.photoUrl ? (
+                  <img src={partner.photoUrl} alt="Partner" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
+                    <span className="material-symbols-outlined text-on-surface-variant text-6xl">person</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -114,6 +143,21 @@ function DashboardContent() {
               <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">Membership Expires</p>
               <p className="font-display text-headline-md">{member?.membershipExpiry ? formatDate(member.membershipExpiry) : '—'}</p>
             </div>
+            {member?.membershipTier?.includes('Couple') && (
+              <div className="border-t border-surface-variant pt-4 mt-4">
+                <p className="font-label-sm text-label-sm text-primary-container uppercase tracking-widest">Partner</p>
+                {partnerLoading ? (
+                  <p className="text-body-sm text-on-surface-variant mt-2">Loading partner details…</p>
+                ) : partner ? (
+                  <div className="mt-4">
+                    <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">Locker No.</p>
+                    <p className="font-display text-headline-md">—</p>
+                  </div>
+                ) : (
+                  <p className="text-body-sm text-on-surface-variant mt-2">No partner details available yet.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

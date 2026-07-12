@@ -3,7 +3,7 @@ import {
   getDocs, addDoc, serverTimestamp, query, orderBy
 } from 'firebase/firestore';
 import { db } from './firebase';
-import type { Member, Payment, Notification, ContactEnquiry, MembershipPlan } from '../types';
+import type { Member, Partner, Payment, Notification, ContactEnquiry, MembershipPlan } from '../types';
 
 export interface AdminPayment {
   id: string;
@@ -53,6 +53,57 @@ export async function addPayment(uid: string, payment: Omit<Payment, 'id' | 'cre
     createdAt: serverTimestamp(),
   });
   return ref.id;
+}
+export async function addPartner(primaryUid: string, partner: {
+  fullName: string;
+  dob: Date;
+  gender: string;
+  phone: string;
+  address: string;
+  emergencyContact: { name: string; phone: string };
+  height: number | null;
+  weight: number | null;
+  bmi: number | null;
+  medicalConditions: string;
+  medications: string;
+  injuries: string;
+  photoUrl: string;
+}) {
+  const partnerRef = doc(collection(db, 'members', primaryUid, 'partners'));
+  await setDoc(partnerRef, { ...partner, createdAt: serverTimestamp() });
+  return partnerRef.id;
+}
+
+export async function updatePartner(primaryUid: string, partnerId: string, data: Partial<Partner>): Promise<void> {
+  await updateDoc(doc(db, 'members', primaryUid, 'partners', partnerId), data as Record<string, unknown>);
+}
+
+export async function getPartners(primaryUid: string): Promise<Partner[]> {
+  const q = query(collection(db, 'members', primaryUid, 'partners'), orderBy('createdAt', 'asc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => {
+    const data = d.data();
+    return {
+      id: d.id,
+      fullName: String(data.fullName || ''),
+      dob: toDate(data.dob),
+      gender: String(data.gender || ''),
+      phone: String(data.phone || ''),
+      emergencyContact: {
+        name: String((data.emergencyContact as { name?: string })?.name || ''),
+        phone: String((data.emergencyContact as { phone?: string })?.phone || ''),
+      },
+      height: data.height === null || data.height === undefined ? null : Number(data.height),
+      weight: data.weight === null || data.weight === undefined ? null : Number(data.weight),
+      bmi: data.bmi === null || data.bmi === undefined ? null : Number(data.bmi),
+      medicalConditions: String(data.medicalConditions || ''),
+      medications: String(data.medications || ''),
+      injuries: String(data.injuries || ''),
+      photoUrl: String(data.photoUrl || ''),
+      address: String(data.address || ''),
+      createdAt: toDate(data.createdAt),
+    } as Partner;
+  });
 }
 
 async function getAllPaymentsFromFirestore(): Promise<AdminPayment[]> {
@@ -108,8 +159,6 @@ export function subscribeAllPayments(callback: (payments: AdminPayment[]) => voi
 
 export async function setPaymentStatus(uid: string, paymentId: string, status: 'confirmed' | 'rejected', rejectionNote?: string): Promise<void> {
   const paymentRef = doc(db, 'members', uid, 'payments', paymentId);
-  const paymentSnap = await getDoc(paymentRef);
-  const paymentData = paymentSnap.exists() ? (paymentSnap.data() as Record<string, unknown> | undefined) : undefined;
 
   if (status === 'rejected') {
     await updateDoc(paymentRef, {

@@ -73,11 +73,12 @@ export default function LandingPage() {
           <h2 className="font-display text-headline-lg text-on-surface mb-4">MEMBERSHIP PLANS</h2>
           <p className="text-body-lg text-on-surface-variant max-w-2xl font-body">Choose your path to excellence. No contracts, no excuses.</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { name: 'SQUAD', price: 'LKR 5,000', period: '/ month', features: ['General Gym Access', 'Locker Room & Showers'], popular: false },
-            { name: 'CHAMPION', price: 'LKR 8,500', period: '/ month', features: ['24/7 Access Included', 'Free Training Program', 'Supplement Discounts'], popular: true },
-            { name: 'TITAN', price: 'LKR 15,000', period: '/ month', features: ['All Champion Features', '1-on-1 Coaching Session', 'VIP Recovery Access'], popular: false },
+            { name: 'DAILY', price: 'LKR 2,500', period: '/DAY', features: ['24/7 Access', 'Locker Room'], popular: false },
+            { name: 'MONTHLY', price: 'LKR 15,000', period: '/MO', features: ['24/7 Access', 'Locker Room', 'Standard Equipment'], popular: false },
+            { name: 'ANNUAL', price: 'LKR 165,000', period: '/YR', features: ['Unlimited Access', 'PT Sessions', 'Apparel Kit', 'VIP Lounge'], popular: true },
+            { name: 'ANNUAL — COUPLE', price: 'LKR 310,000', period: '/YR', features: ['Everything in Annual', 'Partner Account Included', 'Shared Expiry'], popular: false },
           ].map(plan => (
             <div key={plan.name} className={`bg-surface-container p-10 flex flex-col relative ${plan.popular ? 'border-2 border-primary-container scale-105 z-10 crimson-glow' : 'border border-surface-container-highest'}`}>
               {plan.popular && <div className="absolute top-0 right-0 bg-primary-container text-on-primary-container px-4 py-1 font-label-sm text-label-sm uppercase">MOST POPULAR</div>}

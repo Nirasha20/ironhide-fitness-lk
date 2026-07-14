@@ -4,6 +4,7 @@ export {
   checkMembershipExpiry,
   onPaymentConfirmed,
   updateOccupancy,
+  getDashboardStats,
   onCapacityThreshold,
   onPaymentStatusChanged,
   confirmPaymentAndVerifyEmail,

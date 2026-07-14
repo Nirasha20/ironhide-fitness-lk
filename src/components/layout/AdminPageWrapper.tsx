@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
+import { Outlet } from 'react-router-dom';
 import { AdminNavbar } from './AdminNavbar';
 import { Footer } from './Footer';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
-export function AdminPageWrapper({ children }: { children: React.ReactNode }) {
+export function AdminPageWrapper({ children }: { children?: React.ReactNode }) {
   const online = useOnlineStatus();
   const [dismissed, setDismissed] = useState(false);
 
@@ -21,7 +22,7 @@ export function AdminPageWrapper({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       )}
-      <main className="flex-grow">{children}</main>
+      <main className="flex-grow">{children ?? <Outlet />}</main>
       <Footer />
     </div>
   );

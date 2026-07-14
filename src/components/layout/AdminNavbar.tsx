@@ -5,6 +5,8 @@ import { auth } from '../../lib/firebase';
 
 const items = [
   { to: '/admin', label: 'Dashboard' },
+  { to: '/admin/memberships', label: 'Memberships' },
+  { to: '/admin/payments', label: 'Payments' },
 ];
 
 export function AdminNavbar() {

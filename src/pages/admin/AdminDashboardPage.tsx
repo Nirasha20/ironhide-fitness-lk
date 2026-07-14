@@ -1,329 +1,207 @@
-﻿import { useEffect, useMemo, useState } from 'react';
-import { AdminPageWrapper } from '../../components/layout/AdminPageWrapper';
-import { AuthGuard } from '../../components/layout/AuthGuard';
-import { AdminGuard } from '../../components/layout/AdminGuard';
-import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
+// pages/admin/AdminDashboardPage.tsx
+import { useEffect, useState } from 'react';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Spinner } from '../../components/ui/Spinner';
-import { subscribeAllPayments, setPaymentStatus, type AdminPayment } from '../../lib/memberService';
-import { formatDate, formatCurrency } from '../../lib/utils';
+import { getMonthlyStats, type MonthlyPoint } from '../../lib/analyticsService';
+import { formatCurrency } from '../../lib/utils';
 
-type TabKey = 'all' | 'pending' | 'card' | 'approved' | 'rejected';
-
-const methodMeta: Record<AdminPayment['method'], { label: string; icon: string }> = {
-  card: { label: 'Card Payment', icon: 'credit_card' },
-  bank_transfer: { label: 'Bank Transfer', icon: 'account_balance' },
-  cash: { label: 'Cash at Gym', icon: 'payments' },
-};
-
-function initials(name: string) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
-}
-
-function StatCard({ label, value, sub, icon, highlight }: { label: string; value: string; sub: string; icon: string; highlight?: boolean }) {
-  return (
-    <div className={`p-6 flex flex-col gap-3 ${highlight ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container'}`}>
-      <div className="flex items-center justify-between">
-        <span className={`font-label-sm text-label-sm uppercase tracking-widest ${highlight ? 'text-on-primary-container/80' : 'text-on-surface-variant'}`}>{label}</span>
-        <span className={`material-symbols-outlined text-xl ${highlight ? 'text-on-primary-container' : 'text-on-surface-variant'}`}>{icon}</span>
-      </div>
-      <span className="font-display text-headline-lg">{value}</span>
-      <span className={`text-body-sm font-body ${highlight ? 'text-on-primary-container/80' : 'text-on-surface-variant'}`}>{sub}</span>
-    </div>
-  );
-}
-
-function PaymentDetailModal({ payment, onClose, onUpdated }: { payment: AdminPayment; onClose: () => void; onUpdated: () => void }) {
-  const [busy, setBusy] = useState<'approve' | 'reject' | 'markPaid' | null>(null);
-  const [error, setError] = useState('');
-  const [showRejectForm, setShowRejectForm] = useState(false);
-  const [rejectionNote, setRejectionNote] = useState('');
-  const methodDisplay = methodMeta[payment.method as keyof typeof methodMeta] ?? methodMeta.card;
-
-  const act = async (status: 'confirmed' | 'rejected', which: 'approve' | 'reject' | 'markPaid', note?: string) => {
-    setBusy(which);
-    setError('');
-    try {
-      await setPaymentStatus(payment.memberUid, payment.id, status, note);
-      onUpdated();
-      onClose();
-    } catch {
-      setError('Action failed. Please try again.');
-      setBusy(null);
-    }
-  };
-
-  const confirmReject = () => {
-    const trimmed = rejectionNote.trim();
-    if (!trimmed) return;
-    void act('rejected', 'reject', trimmed);
-  };
-
-  const isPendingBank = payment.method === 'bank_transfer' && payment.status === 'pending_verification';
-  const isPendingCash = payment.method === 'cash' && payment.status === 'pending_cash';
-
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-surface-container-high max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-6" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="font-display text-headline-md uppercase">{payment.memberName}</h3>
-            <p className="text-body-sm text-on-surface-variant font-body">{payment.memberEmail}</p>
-          </div>
-          <button onClick={onClose} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface">close</button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 text-body-sm font-body">
-          <div>
-            <span className="block text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">Plan</span>
-            <span className="font-display text-headline-sm">{payment.plan}</span>
-          </div>
-          <div>
-            <span className="block text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">Amount</span>
-            <span className="font-display text-headline-sm text-primary-container">{formatCurrency(payment.amount)}</span>
-          </div>
-          <div>
-            <span className="block text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">Method</span>
-            <span className="flex items-center gap-2"><span className="material-symbols-outlined text-lg">{methodDisplay.icon}</span>{methodDisplay.label}</span>
-          </div>
-          <div>
-            <span className="block text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">Status</span>
-            <Badge status={payment.status} />
-          </div>
-        </div>
-
-        {payment.method === 'bank_transfer' && payment.receiptUrl && (
-          <div>
-            <span className="block text-label-sm text-on-surface-variant uppercase tracking-widest mb-2">Uploaded Receipt</span>
-            <a href={payment.receiptUrl} target="_blank" rel="noreferrer">
-              <img src={payment.receiptUrl} alt="Payment receipt" className="w-full max-h-80 object-contain bg-surface border border-border-default" />
-            </a>
-          </div>
-        )}
-
-        {error && <p className="text-error text-body-sm font-body">{error}</p>}
-
-        {showRejectForm ? (
-          <div className="space-y-3">
-            <label className="block text-label-sm text-on-surface-variant uppercase tracking-widest">
-              Reason for rejection
-            </label>
-            <textarea
-              className="w-full border border-border-default bg-surface p-3 text-body-sm font-body"
-              rows={4}
-              value={rejectionNote}
-              onChange={e => setRejectionNote(e.target.value)}
-              placeholder="e.g. Bank reference number doesn't match our records"
-            />
-            <div className="flex gap-3 pt-2">
-              <Button variant="secondary" className="flex-1" loading={busy === 'reject'} disabled={!!busy || !rejectionNote.trim()} onClick={confirmReject}>
-                Confirm Rejection
-              </Button>
-              <Button variant="ghost" className="flex-1" disabled={!!busy} onClick={() => { setShowRejectForm(false); setRejectionNote(''); }}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex gap-3 pt-2">
-            {isPendingBank && (
-              <>
-                <Button variant="primary" className="flex-1" loading={busy === 'approve'} disabled={!!busy} onClick={() => act('confirmed', 'approve')}>
-                  Approve
-                </Button>
-                <Button variant="secondary" className="flex-1" disabled={!!busy} onClick={() => setShowRejectForm(true)}>
-                  Reject
-                </Button>
-              </>
-            )}
-            {isPendingCash && (
-              <Button variant="primary" className="flex-1" loading={busy === 'markPaid'} disabled={!!busy} onClick={() => act('confirmed', 'markPaid')}>
-                Mark as Paid
-              </Button>
-            )}
-            {!isPendingBank && !isPendingCash && (
-              <Button variant="ghost" className="flex-1" onClick={onClose}>Close</Button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AdminPaymentsContent() {
-  const [payments, setPayments] = useState<AdminPayment[]>([]);
+function AdminDashboardContent() {
+  const [data, setData] = useState<MonthlyPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabKey>('all');
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<AdminPayment | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = subscribeAllPayments(data => { setPayments(data); setLoading(false); });
-    return unsub;
-  }, [refreshKey]);
+    let mounted = true;
+    setLoading(true);
+    setError(null);
 
-  const stats = useMemo(() => {
-    const now = new Date();
-    const pending = payments.filter(p => p.status === 'pending_verification' || p.status === 'pending_cash');
-    const cardActive = payments.filter(p => p.method === 'card' && p.status === 'confirmed');
-    const approvedThisMonth = payments.filter(p => {
-      const createdAt = p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt);
-      return p.status === 'confirmed' && p.method !== 'card' &&
-        createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
-    });
-    const revenue = payments.filter(p => p.status === 'confirmed').reduce((sum, p) => sum + p.amount, 0);
-    return { pending, cardActive, approvedThisMonth, revenue };
-  }, [payments]);
+    getMonthlyStats(12)
+      .then((d) => {
+        if (!mounted) return;
+        setData(d);
+      })
+      .catch((err) => {
+        console.error('[AdminDashboardPage] getMonthlyStats failed:', err);
+        if (!mounted) return;
+        setError(err?.message ?? 'Unable to load dashboard analytics.');
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoading(false);
+      });
 
-  const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: 'all', label: 'All', count: payments.length },
-    { key: 'pending', label: 'Pending', count: stats.pending.length },
-    { key: 'card', label: 'Card Active', count: stats.cardActive.length },
-    { key: 'approved', label: 'Approved', count: payments.filter(p => p.status === 'confirmed' && p.method !== 'card').length },
-    { key: 'rejected', label: 'Rejected', count: payments.filter(p => p.status === 'rejected').length },
-  ];
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  const filtered = payments.filter(p => {
-    const matchesTab =
-      tab === 'all' ? true :
-      tab === 'pending' ? (p.status === 'pending_verification' || p.status === 'pending_cash') :
-      tab === 'card' ? (p.method === 'card' && p.status === 'confirmed') :
-      tab === 'approved' ? (p.status === 'confirmed' && p.method !== 'card') :
-      p.status === 'rejected';
-    if (!matchesTab) return false;
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    const memberName = (p.memberName || '').toLowerCase();
-    const memberEmail = (p.memberEmail || '').toLowerCase();
-    const paymentId = (p.id || '').toLowerCase();
-    return memberName.includes(q) || memberEmail.includes(q) || paymentId.includes(q);
-  });
+  if (loading) return <div className="flex justify-center py-16"><Spinner size="lg" /></div>;
+  if (error) return <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-16 text-center text-error-container font-body">{error}</div>;
+  if (!data.length) return <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-16 text-center text-on-surface-variant">No analytics data available yet.</div>;
+
+  const latest = data[data.length - 1];
+  const prev = data[data.length - 2];
+  const revenueDelta = latest && prev ? latest.revenue - prev.revenue : 0;
 
   return (
     <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-12 space-y-8">
       <div>
-        <h1 className="font-display text-headline-lg uppercase mb-4">PAYMENT MANAGEMENT</h1>
+        <h1 className="font-display text-headline-lg uppercase mb-4">DASHBOARD</h1>
         <div className="w-24 h-1 bg-primary-container" />
-        <p className="mt-4 max-w-2xl text-body-md text-on-surface-variant font-body">
-          Review card payments, inspect bank transfer receipts, and mark cash-at-gym payments as paid from one place.
-        </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Pending Review" value={String(stats.pending.length)} sub="Needs action" icon="priority_high" highlight />
-        <StatCard label="Approved" value={String(stats.approvedThisMonth.length)} sub="This month" icon="check_circle" />
-        <StatCard label="Card Active" value={String(stats.cardActive.length)} sub="Auto-activated" icon="credit_card" />
-        <StatCard label="Revenue" value={formatCurrency(stats.revenue)} sub="Active + Approved" icon="trending_up" />
-      </div>
-
-      <div className="flex flex-wrap gap-6 border-b border-border-default pb-4">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-2 font-display uppercase tracking-wider pb-2 border-b-2 transition-colors ${
-              tab === t.key ? 'border-primary-container text-primary-container' : 'border-transparent text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
-            {t.label}
-            <span className={`text-label-sm px-2 py-0.5 rounded-full ${tab === t.key ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-high'}`}>
-              {t.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <Input
-        placeholder="Search by name, ID, or email..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
-
-      {loading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <span className="material-symbols-outlined text-5xl text-on-surface-variant opacity-40">inbox</span>
-          <p className="text-body-lg text-on-surface-variant font-body">No payments match this view.</p>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-primary-container text-on-primary-container p-4 rounded-[24px] border border-primary-container shadow-lg shadow-primary-container/20">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-label-sm uppercase tracking-[0.24em] text-rose-100/80">Revenue</p>
+              <p className="font-display text-headline-md mt-4 text-rose-100">{formatCurrency(latest.revenue)}</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-3xl bg-on-primary-container/10 text-rose-100">
+              <span className="material-symbols-outlined text-base">currency_rupee</span>
+            </div>
+          </div>
+          <p className="text-body-sm text-on-primary-container/85 mt-3">Active + approved payments</p>
+          <p className={`mt-3 text-sm font-medium ${revenueDelta >= 0 ? 'text-green-200' : 'text-red-200'}`}>
+            {revenueDelta >= 0 ? '+' : ''}{formatCurrency(revenueDelta)} vs last month
+          </p>
         </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest border-b border-border-default">
-                <th className="py-3 pr-4">Payment ID</th>
-                <th className="py-3 pr-4">Member</th>
-                <th className="py-3 pr-4">Plan</th>
-                <th className="py-3 pr-4">Amount</th>
-                <th className="py-3 pr-4">Method</th>
-                <th className="py-3 pr-4">Status</th>
-                <th className="py-3 pr-4">Submitted</th>
-                <th className="py-3 pr-4">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(p => {
-                const methodDisplay = methodMeta[p.method as keyof typeof methodMeta] ?? methodMeta.card;
-                return (
-                  <tr key={p.id} className="border-b border-border-default/50 hover:bg-surface-container/50">
-                    <td className="py-4 pr-4 font-body text-body-sm text-on-surface-variant">PAY-{String(p.id || '').slice(0, 4).toUpperCase()}</td>
-                    <td className="py-4 pr-4">
-                      <div className="flex items-center gap-3">
-                        <span className="w-9 h-9 flex items-center justify-center rounded-full bg-primary-container/20 text-primary-container font-display text-sm shrink-0">
-                          {initials(String(p.memberName || 'Unknown Member'))}
-                        </span>
-                        <div>
-                          <div className="font-display text-body-md">{p.memberName || 'Unknown Member'}</div>
-                          <div className="text-label-sm text-on-surface-variant font-body">{p.memberEmail || 'No email'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 pr-4 font-body text-body-sm">{p.plan}</td>
-                    <td className="py-4 pr-4 font-display text-body-md">{formatCurrency(p.amount)}</td>
-                    <td className="py-4 pr-4">
-                      <span className="flex items-center gap-2 text-body-sm font-body border border-border-default px-3 py-1.5 w-fit">
-                        <span className="material-symbols-outlined text-base">{methodDisplay.icon}</span>
-                        {methodDisplay.label}
-                      </span>
-                    </td>
-                    <td className="py-4 pr-4"><Badge status={p.status} /></td>
-                    <td className="py-4 pr-4 text-body-sm text-on-surface-variant font-body">{formatDate(p.createdAt)}</td>
-                    <td className="py-4 pr-4">
-                      <Button variant="ghost" size="sm" onClick={() => setSelected(p)}>
-                        <span className="material-symbols-outlined text-base">visibility</span>
-                        View
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
 
-      {selected && (
-        <PaymentDetailModal
-          payment={selected}
-          onClose={() => setSelected(null)}
-          onUpdated={() => setRefreshKey(value => value + 1)}
-        />
-      )}
+        <div className="bg-surface-container p-4 rounded-[24px] border border-surface-container-highest shadow-lg shadow-black/5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-label-sm uppercase tracking-[0.24em] text-green-300">Card Payments</p>
+              <p className="font-display text-headline-md mt-4 text-green-100">{latest.cardPayments}</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-3xl bg-green-500/10 border border-green-500/20 text-green-300">
+              <span className="material-symbols-outlined text-base">credit_card</span>
+            </div>
+          </div>
+          <p className="text-body-sm text-on-surface-variant mt-3">Auto-activated payments</p>
+        </div>
+
+        <div className="bg-surface-container p-4 rounded-[24px] border border-surface-container-highest shadow-lg shadow-black/5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-label-sm uppercase tracking-[0.24em] text-amber-300">Bank Transfers</p>
+              <p className="font-display text-headline-md mt-4 text-amber-100">{latest.bankTransferPayments}</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-300">
+              <span className="material-symbols-outlined text-base">account_balance</span>
+            </div>
+          </div>
+          <p className="text-body-sm text-on-surface-variant mt-3">{latest.bankTransferPending > 0 ? `${latest.bankTransferPending} pending review` : 'No pending transfers'}</p>
+        </div>
+
+        <div className="bg-surface-container p-4 rounded-[24px] border border-surface-container-highest shadow-lg shadow-black/5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-label-sm uppercase tracking-[0.24em] text-sky-300">Pay at Gym</p>
+              <p className="font-display text-headline-md mt-4 text-sky-100">{latest.cashPayments}</p>
+            </div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-3xl bg-sky-500/10 border border-sky-500/20 text-sky-300">
+              <span className="material-symbols-outlined text-base">payments</span>
+            </div>
+          </div>
+          <p className="text-body-sm text-on-surface-variant mt-3">{latest.cashPending > 0 ? `${latest.cashPending} pending review` : 'No pending cash payments'}</p>
+        </div>
+      </div>
+
+      <div className="bg-surface-container p-6 rounded-lg border border-surface-container-highest shadow-lg shadow-black/5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="bg-surface-200 p-4 rounded-[24px] border border-surface-container-highest shadow-sm shadow-black/5">
+            <p className="text-label-sm uppercase tracking-[0.24em] text-emerald-300">Active Memberships</p>
+            <p className="font-display text-headline-md mt-4 text-emerald-100">{latest.activeMembers}</p>
+            <p className="text-body-sm text-on-surface-variant mt-3">Members active in the latest month</p>
+          </div>
+          <div className="bg-surface-200 p-4 rounded-[24px] border border-surface-container-highest shadow-sm shadow-black/5">
+            <p className="text-label-sm uppercase tracking-[0.24em] text-violet-300">New Signups</p>
+            <p className="font-display text-headline-md mt-4 text-violet-100">{latest.newSignups}</p>
+            <p className="text-body-sm text-on-surface-variant mt-3">New signups during the latest month</p>
+          </div>
+          <div className="bg-surface-200 p-4 rounded-[24px] border border-surface-container-highest shadow-sm shadow-black/5">
+            <p className="text-label-sm uppercase tracking-[0.24em] text-rose-300">Deactivated Memberships</p>
+            <p className="font-display text-headline-md mt-4 text-rose-100">{latest.deactivatedMemberships}</p>
+            <p className="text-body-sm text-on-surface-variant mt-3">Memberships expired or rejected this month</p>
+          </div>
+        </div>
+
+        <div className="bg-surface-container p-4 rounded-[24px] border border-surface-container-highest shadow-lg shadow-black/5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-label-sm uppercase tracking-[0.24em] text-on-surface-variant">Payment Method Share</p>
+              <h3 className="font-display text-headline-sm mt-2">Card / Bank / Gym</h3>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: 'Card Payments', value: latest.cardPayments },
+                  { name: 'Bank Transfers', value: latest.bankTransferPayments },
+                  { name: 'Pay at Gym', value: latest.cashPayments },
+                ]}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={58}
+                outerRadius={90}
+                paddingAngle={2}
+                label={({ name, value }) => `${name}: ${value}`}
+              >
+                {['#4ade80', '#fbbf24', '#38bdf8'].map((fill) => (
+                  <Cell key={fill} fill={fill} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => `${value ?? ''}`} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="grid grid-cols-1 gap-2 mt-4">
+            <div className="flex items-center gap-3 text-body-sm text-on-surface-variant">
+              <span className="h-2.5 w-2.5 rounded-full bg-green-300" /> Card Payments
+            </div>
+            <div className="flex items-center gap-3 text-body-sm text-on-surface-variant">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Bank Transfers
+            </div>
+            <div className="flex items-center gap-3 text-body-sm text-on-surface-variant">
+              <span className="h-2.5 w-2.5 rounded-full bg-sky-400" /> Pay at Gym
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-surface-container p-6 rounded-lg">
+          <h2 className="font-display text-headline-sm uppercase mb-4">Active Memberships</h2>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={data}>
+              <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#cbd5e1' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#cbd5e1' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
+              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#e2e8f0' }} itemStyle={{ color: '#e2e8f0' }} labelStyle={{ color: '#94a3b8' }} />
+              <Line type="monotone" dataKey="activeMembers" stroke="#38bdf8" strokeWidth={3} dot={{ r: 4, fill: '#38bdf8' }} activeDot={{ r: 6, fill: '#22c55e' }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-surface-container p-6 rounded-lg">
+          <h2 className="font-display text-headline-sm uppercase mb-4">Revenue (LKR)</h2>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={data}>
+              <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#cbd5e1' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
+              <YAxis label={{ value: 'Revenue (LKR)', angle: -90, position: 'insideLeft', offset: -10, fill: '#cbd5e1', style: { fontSize: 12 } }} tickFormatter={(value) => Number(value).toLocaleString()} tick={{ fontSize: 12, fill: '#cbd5e1' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
+              <Tooltip formatter={(value) => formatCurrency(Number(value))} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#e2e8f0' }} itemStyle={{ color: '#e2e8f0' }} labelStyle={{ color: '#94a3b8' }} />
+              <Bar dataKey="revenue" fill="#22c55e" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function AdminDashboardPage() {
-  return (
-    <AuthGuard>
-      <AdminGuard>
-        <AdminPageWrapper>
-          <AdminPaymentsContent />
-        </AdminPageWrapper>
-      </AdminGuard>
-    </AuthGuard>
-  );
+  return <AdminDashboardContent />;
 }

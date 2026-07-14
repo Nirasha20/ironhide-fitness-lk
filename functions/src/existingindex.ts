@@ -134,6 +134,126 @@ export const updateOccupancy = functions.https.onCall(async (data: { action: 'en
   });
 });
 
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthLabel(date: Date) {
+  return date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function toDate(value: any): Date | null {
+  if (!value) return null;
+  if (value instanceof admin.firestore.Timestamp) return value.toDate();
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export const getDashboardStats = functions.https.onCall(async (data: { monthsBack?: number }) => {
+  const monthsBack = typeof data?.monthsBack === 'number' && data.monthsBack > 0 ? Math.min(data.monthsBack, 36) : 12;
+  const now = new Date();
+  const buckets = new Map<string, {
+    month: string;
+    label: string;
+    activeMembers: number;
+    revenue: number;
+    newSignups: number;
+    deactivatedMemberships: number;
+    cardPayments: number;
+    bankTransferPayments: number;
+    bankTransferPending: number;
+    cashPayments: number;
+    cashPending: number;
+  }>();
+
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = monthKey(d);
+    buckets.set(key, {
+      month: key,
+      label: monthLabel(d),
+      activeMembers: 0,
+      revenue: 0,
+      newSignups: 0,
+      deactivatedMemberships: 0,
+      cardPayments: 0,
+      bankTransferPayments: 0,
+      bankTransferPending: 0,
+      cashPayments: 0,
+      cashPending: 0,
+    });
+  }
+
+  const paymentsSnap = await db.collectionGroup('payments').get();
+  paymentsSnap.docs.forEach((doc) => {
+    const payment = doc.data() as any;
+    const createdAt = toDate(payment.createdAt);
+    if (!createdAt) return;
+    const key = monthKey(createdAt);
+    if (!buckets.has(key)) return;
+    const bucket = buckets.get(key)!;
+    const method = payment.method as string | undefined;
+    const status = payment.status as string | undefined;
+
+    if (payment.status === 'confirmed') {
+      bucket.revenue += Number(payment.amount ?? 0);
+    }
+
+    if (method === 'card' && status === 'confirmed') {
+      bucket.cardPayments += 1;
+    }
+    if (method === 'bank_transfer') {
+      bucket.bankTransferPayments += 1;
+      if (status === 'pending_verification') {
+        bucket.bankTransferPending += 1;
+      }
+    }
+    if (method === 'cash') {
+      bucket.cashPayments += 1;
+      if (status === 'pending_cash') {
+        bucket.cashPending += 1;
+      }
+    }
+  });
+
+  const membersSnap = await db.collection('members').get();
+  membersSnap.docs.forEach((doc) => {
+    const member = doc.data() as any;
+    const joinedAt = toDate(member.createdAt);
+    if (!joinedAt) return;
+    const expiryAt = toDate(member.membershipExpiry);
+
+    for (const [key, bucket] of buckets) {
+      const [year, month] = key.split('-').map(Number);
+      const bucketStart = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      const bucketEnd = new Date(year, month, 0, 23, 59, 59, 999);
+      const wasActiveDuringMonth = joinedAt <= bucketEnd && (expiryAt ? expiryAt >= bucketStart : member.membershipStatus === 'active');
+      if (wasActiveDuringMonth) {
+        bucket.activeMembers += 1;
+      }
+    }
+
+    const signupKey = monthKey(joinedAt);
+    if (buckets.has(signupKey)) {
+      buckets.get(signupKey)!.newSignups += 1;
+    }
+
+    if (member.membershipStatus === 'expired' && expiryAt) {
+      const expiryKey = monthKey(expiryAt);
+      if (buckets.has(expiryKey)) {
+        buckets.get(expiryKey)!.deactivatedMemberships += 1;
+      }
+    }
+
+    if (member.membershipStatus === 'rejected' && buckets.has(signupKey)) {
+      buckets.get(signupKey)!.deactivatedMemberships += 1;
+    }
+  });
+
+  return { monthlyStats: Array.from(buckets.values()) };
+});
+
 // 5. Capacity threshold alert
 export const onCapacityThreshold = functions.firestore
   .document('gym_meta/occupancy')

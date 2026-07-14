@@ -7,7 +7,7 @@ import { auth, storage } from '../lib/firebase';
 import { db } from '../lib/firebase';
 import { createMember, addPayment, getMembershipPlans, addPartner } from '../lib/memberService';
 import { doc, updateDoc } from 'firebase/firestore';
-import { calculateBMI } from '../lib/utils';
+import { calculateBMI, isValidEmail, isStrongPassword } from '../lib/utils';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Button } from '../components/ui/Button';
@@ -131,9 +131,9 @@ export default function SignupPage() {
       if (!personal.phone.trim()) errs.phone = 'Phone number is required';
       else if (!/^0\d{9}$/.test(personal.phone.replace(/\s/g, ''))) errs.phone = 'Enter a valid Sri Lanka number (07X XXXXXXX)';
       if (!personal.email.trim()) errs.email = 'Email is required';
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(personal.email)) errs.email = 'Enter a valid email address';
+      else if (!isValidEmail(personal.email)) errs.email = 'Enter a valid email address';
       if (!personal.password) errs.password = 'Password is required';
-      else if (personal.password.length < 6) errs.password = 'Password must be at least 6 characters';
+      else if (!isStrongPassword(personal.password)) errs.password = 'Use at least 8 characters including uppercase, lowercase, number, and symbol';
       if (!personal.confirmPassword) errs.confirmPassword = 'Please confirm your password';
       else if (personal.password !== personal.confirmPassword) errs.confirmPassword = 'Passwords do not match';
       if (!personal.address.trim()) errs.address = 'Home address is required';
@@ -196,7 +196,7 @@ export default function SignupPage() {
     setLoading(true);
     setSubmitError('');
     try {
-      const userCred = await createUserWithEmailAndPassword(auth, personal.email, personal.password);
+      const userCred = await createUserWithEmailAndPassword(auth, personal.email.trim(), personal.password);
       const uid = userCred.user.uid;
       try {
         await sendEmailVerification(userCred.user);
@@ -420,7 +420,7 @@ export default function SignupPage() {
                 </div>
                 <Input label="Phone Number" value={personal.phone} onChange={e => setPersonal(p => ({ ...p, phone: e.target.value }))} error={errors.phone} placeholder="07X XXX XXXX" />
                 <Input label="Email Address" type="email" value={personal.email} onChange={e => setPersonal(p => ({ ...p, email: e.target.value }))} error={errors.email} placeholder="you@email.com" />
-                <Input label="Password" type="password" value={personal.password} onChange={e => setPersonal(p => ({ ...p, password: e.target.value }))} error={errors.password} placeholder="Min 6 characters" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" />
+                <Input label="Password" type="password" value={personal.password} onChange={e => setPersonal(p => ({ ...p, password: e.target.value }))} error={errors.password} placeholder="Min 8 characters" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" />
                 <Input label="Confirm Password" type="password" value={personal.confirmPassword} onChange={e => setPersonal(p => ({ ...p, confirmPassword: e.target.value }))} error={errors.confirmPassword} placeholder="Re-enter password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" />
               </div>
               <Input label="Home Address" value={personal.address} onChange={e => setPersonal(p => ({ ...p, address: e.target.value }))} error={errors.address} placeholder="Street, City" />

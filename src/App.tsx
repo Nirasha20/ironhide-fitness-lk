@@ -1,10 +1,13 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ScrollToTop } from './components/ScrollToTop';
 import { AuthGuard } from './components/layout/AuthGuard';
 import { AdminGuard } from './components/layout/AdminGuard';
+import { AdminPageWrapper } from './components/layout/AdminPageWrapper';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import AdminPaymentsPage from './pages/admin/AdminPaymentsPage';
+import AdminMembershipsPage from './pages/admin/AdminMembershipsPage';
 import LandingPage from './pages/LandingPage';
 import FacilitiesPage from './pages/FacilitiesPage';
 import MembershipPage from './pages/MembershipPage';
@@ -61,16 +64,12 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/staff/parking" element={<StaffParkingPage />} />
             <Route path="*" element={<NotFoundPage />} />
-            <Route
-              path="/admin"
-              element={
-                <AuthGuard>
-                  <AdminGuard>
-                    <AdminDashboardPage />
-                  </AdminGuard>
-                </AuthGuard>
-              }
-            />
+            <Route path="/admin" element={<AuthGuard><AdminGuard><AdminPageWrapper /></AdminGuard></AuthGuard>}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboardPage />} />
+              <Route path="payments" element={<AdminPaymentsPage />} />
+              <Route path="memberships" element={<AdminMembershipsPage />} />
+            </Route>
           </Routes>
         </BrowserRouter>
       </AuthProvider>

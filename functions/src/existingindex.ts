@@ -142,6 +142,14 @@ function monthLabel(date: Date) {
   return date.toLocaleString('en-US', { month: 'short', year: 'numeric' });
 }
 
+function dayLabel(date: Date) {
+  return date.toLocaleString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function dayKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 function toDate(value: any): Date | null {
   if (!value) return null;
   if (value instanceof admin.firestore.Timestamp) return value.toDate();
@@ -150,14 +158,18 @@ function toDate(value: any): Date | null {
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export const getDashboardStats = functions.https.onCall(async (data: { monthsBack?: number }) => {
+export const getDashboardStats = functions.https.onCall(async (data: { monthsBack?: number; reportMode?: 'monthly' | 'daily' }) => {
   const monthsBack = typeof data?.monthsBack === 'number' && data.monthsBack > 0 ? Math.min(data.monthsBack, 36) : 12;
+  const reportMode = data?.reportMode === 'daily' ? 'daily' : 'monthly';
   const now = new Date();
   const buckets = new Map<string, {
     month: string;
     label: string;
     activeMembers: number;
     revenue: number;
+    cardRevenue: number;
+    bankTransferRevenue: number;
+    cashRevenue: number;
     newSignups: number;
     deactivatedMemberships: number;
     cardPayments: number;
@@ -167,22 +179,49 @@ export const getDashboardStats = functions.https.onCall(async (data: { monthsBac
     cashPending: number;
   }>();
 
-  for (let i = monthsBack - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = monthKey(d);
-    buckets.set(key, {
-      month: key,
-      label: monthLabel(d),
-      activeMembers: 0,
-      revenue: 0,
-      newSignups: 0,
-      deactivatedMemberships: 0,
-      cardPayments: 0,
-      bankTransferPayments: 0,
-      bankTransferPending: 0,
-      cashPayments: 0,
-      cashPending: 0,
-    });
+  if (reportMode === 'daily') {
+    const daysBack = Math.min(Math.max(monthsBack * 30, 30), 365);
+    for (let i = daysBack - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const key = dayKey(d);
+      buckets.set(key, {
+        month: key,
+        label: dayLabel(d),
+        activeMembers: 0,
+        revenue: 0,
+        cardRevenue: 0,
+        bankTransferRevenue: 0,
+        cashRevenue: 0,
+        newSignups: 0,
+        deactivatedMemberships: 0,
+        cardPayments: 0,
+        bankTransferPayments: 0,
+        bankTransferPending: 0,
+        cashPayments: 0,
+        cashPending: 0,
+      });
+    }
+  } else {
+    for (let i = monthsBack - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = monthKey(d);
+      buckets.set(key, {
+        month: key,
+        label: monthLabel(d),
+        activeMembers: 0,
+        revenue: 0,
+        cardRevenue: 0,
+        bankTransferRevenue: 0,
+        cashRevenue: 0,
+        newSignups: 0,
+        deactivatedMemberships: 0,
+        cardPayments: 0,
+        bankTransferPayments: 0,
+        bankTransferPending: 0,
+        cashPayments: 0,
+        cashPending: 0,
+      });
+    }
   }
 
   const paymentsSnap = await db.collectionGroup('payments').get();
@@ -190,30 +229,38 @@ export const getDashboardStats = functions.https.onCall(async (data: { monthsBac
     const payment = doc.data() as any;
     const createdAt = toDate(payment.createdAt);
     if (!createdAt) return;
-    const key = monthKey(createdAt);
+    const key = reportMode === 'daily' ? dayKey(createdAt) : monthKey(createdAt);
     if (!buckets.has(key)) return;
     const bucket = buckets.get(key)!;
     const method = payment.method as string | undefined;
     const status = payment.status as string | undefined;
+    const amount = Number(payment.amount ?? 0);
 
-    if (payment.status === 'confirmed') {
-      bucket.revenue += Number(payment.amount ?? 0);
-    }
+    if (status === 'confirmed') {
+      bucket.revenue += amount;
 
-    if (method === 'card' && status === 'confirmed') {
-      bucket.cardPayments += 1;
-    }
-    if (method === 'bank_transfer') {
-      bucket.bankTransferPayments += 1;
-      if (status === 'pending_verification') {
-        bucket.bankTransferPending += 1;
+      if (method === 'card') {
+        bucket.cardRevenue += amount;
+        bucket.cardPayments += 1;
+      }
+
+      if (method === 'bank_transfer') {
+        bucket.bankTransferRevenue += amount;
+        bucket.bankTransferPayments += 1;
+      }
+
+      if (method === 'cash') {
+        bucket.cashRevenue += amount;
+        bucket.cashPayments += 1;
       }
     }
-    if (method === 'cash') {
-      bucket.cashPayments += 1;
-      if (status === 'pending_cash') {
-        bucket.cashPending += 1;
-      }
+
+    if (method === 'bank_transfer' && status === 'pending_verification') {
+      bucket.bankTransferPending += 1;
+    }
+
+    if (method === 'cash' && status === 'pending_cash') {
+      bucket.cashPending += 1;
     }
   });
 
@@ -223,6 +270,26 @@ export const getDashboardStats = functions.https.onCall(async (data: { monthsBac
     const joinedAt = toDate(member.createdAt);
     if (!joinedAt) return;
     const expiryAt = toDate(member.membershipExpiry);
+
+    if (reportMode === 'daily') {
+      const signupKey = dayKey(joinedAt);
+      if (buckets.has(signupKey)) {
+        buckets.get(signupKey)!.newSignups += 1;
+      }
+
+      if (member.membershipStatus === 'expired' && expiryAt) {
+        const expiryKey = dayKey(expiryAt);
+        if (buckets.has(expiryKey)) {
+          buckets.get(expiryKey)!.deactivatedMemberships += 1;
+        }
+      }
+
+      if (member.membershipStatus === 'rejected' && buckets.has(signupKey)) {
+        buckets.get(signupKey)!.deactivatedMemberships += 1;
+      }
+
+      return;
+    }
 
     for (const [key, bucket] of buckets) {
       const [year, month] = key.split('-').map(Number);
@@ -251,7 +318,10 @@ export const getDashboardStats = functions.https.onCall(async (data: { monthsBac
     }
   });
 
-  return { monthlyStats: Array.from(buckets.values()) };
+  return {
+    monthlyStats: reportMode === 'monthly' ? Array.from(buckets.values()) : [],
+    dailyStats: reportMode === 'daily' ? Array.from(buckets.values()) : [],
+  };
 });
 
 // 5. Capacity threshold alert

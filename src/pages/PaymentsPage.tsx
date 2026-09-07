@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { AuthGuard } from '../components/layout/AuthGuard';
 import { Badge } from '../components/ui/Badge';
-import { addPayment, getPayments } from '../lib/memberService';
+import { addPayment, getPayments, resolvePaymentOwnerUid } from '../lib/memberService';
 import { getStripeReturnStatus, clearStripeSession } from '../lib/stripe';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, formatCurrency } from '../lib/utils';
@@ -96,6 +96,7 @@ function PaymentsContent() {
       const receiptUrl = await getDownloadURL(receiptRef);
       const nextStatus = payment.method === 'cash' ? 'pending_cash' : 'pending_verification';
 
+      const ownerUid = await resolvePaymentOwnerUid(user.uid);
       const newPaymentId = await addPayment(user.uid, {
         amount: payment.amount,
         plan: payment.plan,
@@ -104,7 +105,7 @@ function PaymentsContent() {
         receiptUrl,
       });
 
-      await updateDoc(doc(db, 'members', user.uid), {
+      await updateDoc(doc(db, 'members', ownerUid), {
         membershipStatus: nextStatus,
       });
 

@@ -20,6 +20,13 @@ function getDayKeyFromDateValue(value: string): string {
   return value.slice(0, 10);
 }
 
+function toInputDateValue(value: string, reportMode: DashboardReportMode): string {
+  if (!value) return '';
+  if (reportMode === 'daily') return value.slice(0, 10);
+  if (/^\d{4}-\d{2}$/.test(value)) return `${value}-01`;
+  return value.slice(0, 10);
+}
+
 function AdminDashboardContent() {
   const [data, setData] = useState<MonthlyPoint[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,8 +48,11 @@ function AdminDashboardContent() {
         if (d.length) {
           const firstValue = d[0]?.month ?? '';
           const lastValue = d[d.length - 1]?.month ?? '';
-          setStartMonth((current) => current || firstValue);
-          setEndMonth((current) => current || lastValue);
+          setStartMonth(toInputDateValue(firstValue, reportMode));
+          setEndMonth(toInputDateValue(lastValue, reportMode));
+        } else {
+          setStartMonth('');
+          setEndMonth('');
         }
       })
       .catch((err) => {
@@ -60,8 +70,21 @@ function AdminDashboardContent() {
     };
   }, [reportMode]);
 
-  const latest = data[data.length - 1];
-  const prev = data[data.length - 2];
+  const normalizedStart = startMonth && endMonth && startMonth > endMonth ? endMonth : startMonth;
+  const normalizedEnd = startMonth && endMonth && startMonth > endMonth ? startMonth : endMonth;
+  const normalizedStartKey = reportMode === 'daily'
+    ? getDayKeyFromDateValue(normalizedStart)
+    : getMonthKeyFromDateValue(normalizedStart);
+  const normalizedEndKey = reportMode === 'daily'
+    ? getDayKeyFromDateValue(normalizedEnd)
+    : getMonthKeyFromDateValue(normalizedEnd);
+
+  const filteredData = !data.length || !normalizedStartKey || !normalizedEndKey
+    ? []
+    : data.filter((point) => point.month >= normalizedStartKey && point.month <= normalizedEndKey);
+
+  const latest = filteredData[filteredData.length - 1];
+  const prev = filteredData[filteredData.length - 2];
   const latestRevenue = Number(latest?.revenue ?? 0);
   const prevRevenue = Number(prev?.revenue ?? 0);
   const latestCardRevenue = Number(latest?.cardRevenue ?? 0);
@@ -83,19 +106,7 @@ function AdminDashboardContent() {
   const bankTransferRevenueDelta = latestBankTransferRevenue - prevBankTransferRevenue;
   const cashRevenueDelta = latestCashRevenue - prevCashRevenue;
 
-  const normalizedStart = startMonth && endMonth && startMonth > endMonth ? endMonth : startMonth;
-  const normalizedEnd = startMonth && endMonth && startMonth > endMonth ? startMonth : endMonth;
-  const normalizedStartKey = reportMode === 'daily'
-    ? getDayKeyFromDateValue(normalizedStart)
-    : getMonthKeyFromDateValue(normalizedStart);
-  const normalizedEndKey = reportMode === 'daily'
-    ? getDayKeyFromDateValue(normalizedEnd)
-    : getMonthKeyFromDateValue(normalizedEnd);
-
-  const reportRows = !data.length || !normalizedStartKey || !normalizedEndKey
-    ? []
-    : data.filter((point) => point.month >= normalizedStartKey && point.month <= normalizedEndKey);
-
+  const reportRows = filteredData;
   const totalCardRevenue = reportRows.reduce((sum, row) => sum + Number(row.cardRevenue ?? 0), 0);
   const totalBankTransferRevenue = reportRows.reduce((sum, row) => sum + Number(row.bankTransferRevenue ?? 0), 0);
   const totalCashRevenue = reportRows.reduce((sum, row) => sum + Number(row.cashRevenue ?? 0), 0);
@@ -204,53 +215,57 @@ function AdminDashboardContent() {
         </div>
       </div>
 
-      <div className="bg-surface-container p-4 rounded-[24px] border border-surface-container-highest shadow-lg shadow-black/5">
+      <div className="bg-surface-container p-5 rounded-[24px] border border-primary-container/40 shadow-lg shadow-black/10">
         <div className="flex flex-col gap-4 mb-4">
-          <div>
-            <p className="text-label-sm uppercase tracking-[0.24em] text-on-surface-variant">See All Sales</p>
-            <h2 className="font-display text-headline-sm mt-2">Sales report</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-label-sm uppercase tracking-[0.24em] text-primary-container">Filter Graphs & Sales</p>
+              <h2 className="font-display text-headline-sm mt-2">Sales report</h2>
+            </div>
+            <div className="rounded-full border border-primary-container/40 bg-primary-container/10 px-3 py-1 text-sm text-primary-container">
+              Select a date range to update the charts
+            </div>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-end gap-4">
-            <label className="flex flex-col gap-2 text-body-sm text-on-surface-variant max-w-[220px]">
-              <span>From</span>
+          <div className="flex flex-col lg:flex-row lg:items-end gap-4 rounded-[20px] border border-surface-container-highest bg-surface-container-high/70 p-4">
+            <label className="flex flex-col gap-2 text-body-sm text-on-surface-variant min-w-[180px]">
+              <span className="font-medium text-white">From</span>
               <input
                 type="date"
                 value={startMonth}
                 onChange={(event) => setStartMonth(event.target.value)}
-                className="rounded-lg border border-surface-container-highest bg-surface px-3 py-2 text-white [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-200"
+                className="rounded-lg border border-primary-container/40 bg-surface px-3 py-2.5 text-white shadow-sm outline-none focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-200"
               />
             </label>
 
-            <label className="flex flex-col gap-2 text-body-sm text-on-surface-variant max-w-[220px]">
-              <span>To</span>
+            <label className="flex flex-col gap-2 text-body-sm text-on-surface-variant min-w-[180px]">
+              <span className="font-medium text-white">To</span>
               <input
                 type="date"
                 value={endMonth}
                 onChange={(event) => setEndMonth(event.target.value)}
-                className="rounded-lg border border-surface-container-highest bg-surface px-3 py-2 text-white [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-200"
+                className="rounded-lg border border-primary-container/40 bg-surface px-3 py-2.5 text-white shadow-sm outline-none focus:border-primary-container focus:ring-2 focus:ring-primary-container/30 [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:brightness-0 [&::-webkit-calendar-picker-indicator]:contrast-200"
               />
             </label>
 
-            <label className="flex flex-col gap-2 text-body-sm text-on-surface-variant max-w-[220px]">
-              <span>Report Type</span>
+            <label className="flex flex-col gap-2 text-body-sm text-on-surface-variant min-w-[220px]">
+              <span className="font-medium text-white">Report Type</span>
               <select
                 value={reportMode}
                 onChange={(event) => setReportMode(event.target.value as 'monthly' | 'daily')}
-                className="rounded-lg border border-surface-container-highest bg-surface px-3 py-2 text-white"
+                className="rounded-lg border border-primary-container/40 bg-surface px-3 py-2.5 text-white shadow-sm outline-none focus:border-primary-container focus:ring-2 focus:ring-primary-container/30"
               >
                 <option value="monthly">Monthly Records</option>
                 <option value="daily">Daily Records</option>
               </select>
             </label>
 
-            <div className="flex flex-col gap-2 md:items-end">
-              <div className="w-24 h-1 bg-primary-container" />
+            <div className="flex flex-col gap-2 lg:items-end lg:ml-auto">
               <button
                 type="button"
                 onClick={handleDownloadReport}
                 disabled={!reportRows.length}
-                className="rounded-lg bg-primary-container px-4 py-2 text-sm font-medium text-on-primary-container disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-primary-container px-4 py-2.5 text-sm font-medium text-on-primary-container disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Download Sales Report
               </button>
@@ -390,7 +405,7 @@ function AdminDashboardContent() {
           <div className="bg-surface-container p-6 rounded-lg">
             <h2 className="font-display text-headline-sm uppercase mb-4">Active Memberships</h2>
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={data}>
+              <LineChart data={filteredData}>
                 <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
                 <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#cbd5e1' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#cbd5e1' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
@@ -403,7 +418,7 @@ function AdminDashboardContent() {
           <div className="bg-surface-container p-6 rounded-lg">
             <h2 className="font-display text-headline-sm uppercase mb-4">Revenue (LKR)</h2>
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={data}>
+              <BarChart data={filteredData}>
                 <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
                 <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#cbd5e1' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />
                 <YAxis label={{ value: 'Revenue (LKR)', angle: -90, position: 'insideLeft', offset: -10, fill: '#cbd5e1', style: { fontSize: 12 } }} tickFormatter={(value) => Number(value).toLocaleString()} tick={{ fontSize: 12, fill: '#cbd5e1' }} axisLine={{ stroke: '#475569' }} tickLine={{ stroke: '#475569' }} />

@@ -20,7 +20,12 @@ export interface Member {
   membershipExpiry: Date;
   role: 'customer' | 'admin';
   createdAt: Date;
+  // Couple plan fields
+  secondaryMemberEmail?: string;    // stored on primary member doc
+  linkedPrimaryUid?: string;        // stored on secondary member doc
+  isSecondaryMember?: boolean;      // true for secondary couple-plan members
 }
+
 
 export interface Partner {
   id: string;
@@ -72,4 +77,24 @@ export interface ContactEnquiry {
   email: string;
   message: string;
   createdAt: Date;
+}
+
+export interface StaffMember {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: string;
+  department: string;
+  status: 'active' | 'inactive';
+  createdAt: Date;
+}
+
+export interface StaffAttendanceRecord {
+  id: string;
+  staffId: string;
+  date: string;
+  status: 'present' | 'absent' | 'leave' | 'off';
+  note: string;
+  updatedAt: Date;
 }

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
-import { getMember, updateMember, getPartners, updatePartner } from '../lib/memberService';
+import { getMember, updateMember, getPartners } from '../lib/memberService';
 import { calculateBMI } from '../lib/utils';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { AuthGuard } from '../components/layout/AuthGuard';
@@ -9,7 +9,7 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../hooks/useAuth';
-import type { Member, Partner } from '../types';
+import type { Member } from '../types';
 
 function ProfileContent() {
   const { user } = useAuth();
@@ -19,19 +19,6 @@ function ProfileContent() {
   const [saved, setSaved] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState('');
-  const [partner, setPartner] = useState<Partner | null>(null);
-  const [partnerForm, setPartnerForm] = useState({
-    fullName: '', dob: '', gender: '', phone: '',
-    address: '',
-    emergencyName: '', emergencyPhone: '',
-    height: '', weight: '',
-    medicalConditions: '', medications: '', injuries: '',
-  });
-  const [partnerPhotoFile, setPartnerPhotoFile] = useState<File | null>(null);
-  const [partnerPhotoPreview, setPartnerPhotoPreview] = useState('');
-  const [partnerSaving, setPartnerSaving] = useState(false);
-  const [partnerSaved, setPartnerSaved] = useState(false);
-  const partnerSectionRef = useRef<HTMLDivElement | null>(null);
   const [form, setForm] = useState({
     fullName: '', phone: '', address: '',
     emergencyName: '', emergencyPhone: '',
@@ -42,7 +29,7 @@ function ProfileContent() {
   useEffect(() => {
     if (!user) return;
     Promise.all([getMember(user.uid), getPartners(user.uid)])
-      .then(([m, partners]) => {
+      .then(([m]) => {
         if (m) {
           setMember(m);
           setForm({
@@ -58,24 +45,6 @@ function ProfileContent() {
             injuries: m.injuries,
           });
         }
-        setPartner(partners[0] ?? null);
-        if (partners[0]) {
-          setPartnerForm({
-            fullName: partners[0].fullName,
-            dob: partners[0].dob.toISOString().split('T')[0],
-            gender: partners[0].gender,
-            phone: partners[0].phone,
-            address: partners[0].address,
-            emergencyName: partners[0].emergencyContact.name,
-            emergencyPhone: partners[0].emergencyContact.phone,
-            height: partners[0].height ? String(partners[0].height) : '',
-            weight: partners[0].weight ? String(partners[0].weight) : '',
-            medicalConditions: partners[0].medicalConditions,
-            medications: partners[0].medications,
-            injuries: partners[0].injuries,
-          });
-          setPartnerPhotoPreview(partners[0].photoUrl);
-        }
       })
       .finally(() => {
         setLoading(false);
@@ -87,68 +56,6 @@ function ProfileContent() {
     if (!file) return;
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
-  };
-
-  const handlePartnerPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPartnerPhotoFile(file);
-    setPartnerPhotoPreview(URL.createObjectURL(file));
-  };
-
-  const scrollToPartnerSection = () => {
-    partnerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const handlePartnerSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !partner) return;
-    setPartnerSaving(true);
-    try {
-      let photoUrl = partner.photoUrl ?? '';
-      if (partnerPhotoFile) {
-        const photoRef = ref(storage, `members/${user.uid}/partner-profile.jpg`);
-        await uploadBytes(photoRef, partnerPhotoFile);
-        photoUrl = await getDownloadURL(photoRef);
-      }
-      await updatePartner(user.uid, partner.id, {
-        fullName: partnerForm.fullName,
-        dob: new Date(partnerForm.dob),
-        gender: partnerForm.gender,
-        phone: partnerForm.phone,
-        address: partnerForm.address,
-        emergencyContact: { name: partnerForm.emergencyName, phone: partnerForm.emergencyPhone },
-        height: partnerForm.height ? Number(partnerForm.height) : null,
-        weight: partnerForm.weight ? Number(partnerForm.weight) : null,
-        bmi: partnerForm.height && partnerForm.weight ? calculateBMI(Number(partnerForm.height), Number(partnerForm.weight)) : null,
-        medicalConditions: partnerForm.medicalConditions,
-        medications: partnerForm.medications,
-        injuries: partnerForm.injuries,
-        photoUrl,
-      });
-      setPartner(prev => prev ? {
-        ...prev,
-        fullName: partnerForm.fullName,
-        dob: new Date(partnerForm.dob),
-        gender: partnerForm.gender,
-        phone: partnerForm.phone,
-        address: partnerForm.address,
-        emergencyContact: { name: partnerForm.emergencyName, phone: partnerForm.emergencyPhone },
-        height: partnerForm.height ? Number(partnerForm.height) : null,
-        weight: partnerForm.weight ? Number(partnerForm.weight) : null,
-        bmi: partnerForm.height && partnerForm.weight ? calculateBMI(Number(partnerForm.height), Number(partnerForm.weight)) : null,
-        medicalConditions: partnerForm.medicalConditions,
-        medications: partnerForm.medications,
-        injuries: partnerForm.injuries,
-        photoUrl,
-      } : prev);
-      setPartnerSaved(true);
-      setTimeout(() => setPartnerSaved(false), 3000);
-    } catch {
-      // handle error
-    } finally {
-      setPartnerSaving(false);
-    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -208,14 +115,6 @@ function ProfileContent() {
       <h1 className="font-display text-headline-lg uppercase mb-4">EDIT PROFILE</h1>
       <div className="w-24 h-1 bg-primary-container mb-6" />
 
-      {member?.membershipTier?.includes('Couple') && (
-        <div className="mb-8">
-          <Button type="button" variant="secondary" onClick={scrollToPartnerSection}>
-            Edit Partner Details
-          </Button>
-        </div>
-      )}
-
       <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div className="flex flex-col items-center gap-6">
           <div className="w-48 h-48 border-4 border-primary-container overflow-hidden">
@@ -264,56 +163,6 @@ function ProfileContent() {
         </div>
       </form>
 
-      {member?.membershipTier?.includes('Couple') && (
-        <div ref={partnerSectionRef} className="mt-16 border-t border-surface-variant pt-12">
-          <h2 className="font-display text-headline-lg uppercase mb-4">Edit Partner Profile</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            <div className="flex flex-col items-center gap-6">
-              <div className="w-48 h-48 border-4 border-primary-container overflow-hidden">
-                {(partnerPhotoPreview || partner?.photoUrl) ? (
-                  <img src={partnerPhotoPreview || partner?.photoUrl} alt="Partner Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
-                    <span className="material-symbols-outlined text-on-surface-variant text-6xl">person</span>
-                  </div>
-                )}
-              </div>
-              <label className="cursor-pointer bg-surface-container text-on-surface px-4 py-2 border border-border-default hover:border-primary-container transition-all font-body text-body-md">
-                Change Partner Photo
-                <input type="file" accept="image/*" className="hidden" onChange={handlePartnerPhotoChange} />
-              </label>
-            </div>
-
-            <div className="md:col-span-2 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input label="Partner Full Name" value={partnerForm.fullName} onChange={e => setPartnerForm(p => ({ ...p, fullName: e.target.value }))} />
-                <Input label="Partner Phone" value={partnerForm.phone} onChange={e => setPartnerForm(p => ({ ...p, phone: e.target.value }))} />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input label="Partner DOB" type="date" value={partnerForm.dob} onChange={e => setPartnerForm(p => ({ ...p, dob: e.target.value }))} />
-                <Input label="Partner Gender" value={partnerForm.gender} onChange={e => setPartnerForm(p => ({ ...p, gender: e.target.value }))} />
-              </div>
-              <Input label="Partner Address" value={partnerForm.address || ''} onChange={e => setPartnerForm(p => ({ ...p, address: e.target.value }))} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input label="Partner Emergency Contact" value={partnerForm.emergencyName} onChange={e => setPartnerForm(p => ({ ...p, emergencyName: e.target.value }))} />
-                <Input label="Partner Emergency Phone" value={partnerForm.emergencyPhone} onChange={e => setPartnerForm(p => ({ ...p, emergencyPhone: e.target.value }))} />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input label="Partner Height (cm)" type="number" value={partnerForm.height} onChange={e => setPartnerForm(p => ({ ...p, height: e.target.value }))} />
-                <Input label="Partner Weight (kg)" type="number" value={partnerForm.weight} onChange={e => setPartnerForm(p => ({ ...p, weight: e.target.value }))} />
-              </div>
-              <Textarea label="Partner Medical Conditions" value={partnerForm.medicalConditions} onChange={e => setPartnerForm(p => ({ ...p, medicalConditions: e.target.value }))} rows={3} />
-              <Textarea label="Partner Current Medications" value={partnerForm.medications} onChange={e => setPartnerForm(p => ({ ...p, medications: e.target.value }))} rows={3} />
-              <Textarea label="Partner Previous Injuries" value={partnerForm.injuries} onChange={e => setPartnerForm(p => ({ ...p, injuries: e.target.value }))} rows={3} />
-
-              <div className="flex items-center gap-4">
-                <Button type="button" variant="primary" size="lg" loading={partnerSaving} onClick={handlePartnerSave}>SAVE PARTNER</Button>
-                {partnerSaved && <span className="text-green-400 font-body text-body-md">✓ Partner saved</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

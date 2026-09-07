@@ -5,7 +5,7 @@ import { initiateStripeCheckout } from '../lib/stripe';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, storage } from '../lib/firebase';
 import { db } from '../lib/firebase';
-import { createMember, addPayment, getMembershipPlans, addPartner } from '../lib/memberService';
+import { createMember, addPayment, getMembershipPlans, callSendSecondaryMemberInvite } from '../lib/memberService';
 import { doc, updateDoc } from 'firebase/firestore';
 import { calculateBMI, isValidEmail, isStrongPassword } from '../lib/utils';
 import { Input } from '../components/ui/Input';
@@ -15,7 +15,7 @@ import { Spinner } from '../components/ui/Spinner';
 import type { MembershipPlan } from '../types';
 
 const BASE_STEPS = ['Personal Details', 'Health Info', 'Photo Upload', 'Choose Plan', 'Payment'];
-const COUPLE_STEPS = ['Personal Details', 'Health Info', 'Photo Upload', 'Choose Plan', 'Partner Details', 'Payment'];
+const COUPLE_STEPS = ['Personal Details', 'Health Info', 'Photo Upload', 'Choose Plan', 'Secondary Member Email', 'Payment'];
 
 function StepIndicator({ current, steps }: { current: number; steps: string[] }) {
   return (
@@ -68,26 +68,11 @@ export default function SignupPage() {
   const [completed, setCompleted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
-  // Partner (couple plan) — no separate login, just a linked profile record
-  const [partner, setPartner] = useState({
-    fullName: '',
-    dob: '',
-    gender: '',
-    phone: '',
-    address: '',
-    emergencyName: '',
-    emergencyPhone: '',
-    height: '',
-    weight: '',
-    medicalConditions: '',
-    medications: '',
-    injuries: '',
-  });
-  const [partnerPhotoFile, setPartnerPhotoFile] = useState<File | null>(null);
-  const [partnerPhotoPreview, setPartnerPhotoPreview] = useState('');
+  // Couple plan — secondary member's email only (they self-register via invite link)
+  const [secondaryEmail, setSecondaryEmail] = useState('');
+
 
   const bmi = health.height && health.weight ? calculateBMI(Number(health.height), Number(health.weight)) : 0;
-  const partnerBmi = partner.height && partner.weight ? calculateBMI(Number(partner.height), Number(partner.weight)) : 0;
 
   const isCouple = selectedPlan?.name === 'Annual — Couple';
   const steps = isCouple ? COUPLE_STEPS : BASE_STEPS;
@@ -144,17 +129,10 @@ export default function SignupPage() {
       errs.plan = 'Please select a membership plan';
     }
 
-    if (currentStepName === 'Partner Details') {
-      if (!partner.fullName.trim()) errs.partnerFullName = "Partner's full name is required";
-      if (!partner.dob) errs.partnerDob = "Partner's date of birth is required";
-      else {
-        const age = (Date.now() - new Date(partner.dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-        if (age < 16) errs.partnerDob = 'Partner must be at least 16 years old';
-        if (age > 100) errs.partnerDob = 'Please enter a valid date of birth';
-      }
-      if (!partner.gender) errs.partnerGender = 'Please select a gender';
-      if (!partner.phone.trim()) errs.partnerPhone = "Partner's phone number is required";
-      else if (!/^0\d{9}$/.test(partner.phone.replace(/\s/g, ''))) errs.partnerPhone = 'Enter a valid Sri Lanka number (07X XXXXXXX)';
+    if (currentStepName === 'Secondary Member Email') {
+      if (!secondaryEmail.trim()) errs.secondaryEmail = 'Secondary member email is required';
+      else if (!isValidEmail(secondaryEmail)) errs.secondaryEmail = 'Enter a valid email address';
+      else if (secondaryEmail.trim().toLowerCase() === personal.email.trim().toLowerCase()) errs.secondaryEmail = 'Secondary member must have a different email address';
     }
 
     return errs;
@@ -174,13 +152,6 @@ export default function SignupPage() {
     if (!file) return;
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
-  };
-
-  const handlePartnerPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPartnerPhotoFile(file);
-    setPartnerPhotoPreview(URL.createObjectURL(file));
   };
 
   const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,30 +183,19 @@ export default function SignupPage() {
         photoUrl = await getDownloadURL(photoRef);
       }
 
-      let partnerPhotoUrl = '';
-      if (isCouple && partnerPhotoFile) {
-        const partnerPhotoRef = ref(storage, `members/${uid}/partner-profile.jpg`);
-        await uploadBytes(partnerPhotoRef, partnerPhotoFile);
-        partnerPhotoUrl = await getDownloadURL(partnerPhotoRef);
-      }
-
-      const persistPartner = async () => {
-        if (!isCouple) return;
-        await addPartner(uid, {
-          fullName: partner.fullName,
-          dob: new Date(partner.dob),
-          gender: partner.gender,
-          phone: partner.phone,
-          address: partner.address,
-          emergencyContact: { name: partner.emergencyName, phone: partner.emergencyPhone },
-          height: Number(partner.height) || null,
-          weight: Number(partner.weight) || null,
-          bmi: partnerBmi || null,
-          medicalConditions: partner.medicalConditions,
-          medications: partner.medications,
-          injuries: partner.injuries,
-          photoUrl: partnerPhotoUrl,
-        });
+      const dispatchCoupleInvite = async (membershipExpiry: Date) => {
+        if (!isCouple || !secondaryEmail.trim()) return;
+        try {
+          await callSendSecondaryMemberInvite({
+            primaryUid: uid,
+            secondaryEmail: secondaryEmail.trim(),
+            primaryName: personal.fullName,
+            plan: selectedPlan?.name ?? 'Annual — Couple',
+            membershipExpiry: membershipExpiry.toISOString(),
+          });
+        } catch (inviteErr) {
+          console.warn('[SignupPage] Couple invite email failed (non-fatal):', inviteErr);
+        }
       };
 
       // Card Payment — Stripe
@@ -269,7 +229,11 @@ export default function SignupPage() {
             transportMode: personal.transportMode,
           });
 
-          await persistPartner();
+          // For Stripe card payments, the couple invite is sent from the webhook after payment succeeds.
+          // Store secondaryEmail on the member doc so the webhook can read it.
+          if (isCouple && secondaryEmail.trim()) {
+            await updateDoc(doc(db, 'members', uid), { secondaryMemberEmail: secondaryEmail.trim() });
+          }
 
           console.log('[SignupPage] Initiating Stripe checkout for uid:', uid);
           await initiateStripeCheckout({
@@ -302,7 +266,11 @@ export default function SignupPage() {
 
       const now = new Date();
       const expiry = new Date(now);
-      expiry.setMonth(expiry.getMonth() + 1);
+      const months = selectedPlan?.name === 'Annual — Couple' || selectedPlan?.name === 'Annual' ? 12 : 1;
+      expiry.setMonth(expiry.getMonth() + months);
+      if (selectedPlan?.name === 'Annual — Couple' || selectedPlan?.name === 'Annual') {
+        expiry.setDate(expiry.getDate() - 1);
+      }
 
       await createMember(uid, {
         fullName: personal.fullName,
@@ -328,9 +296,8 @@ export default function SignupPage() {
       await updateDoc(doc(db, 'members', uid), {
         legacyMembershipId: personal.legacyMembershipId,
         transportMode: personal.transportMode,
+        ...(isCouple && secondaryEmail.trim() ? { secondaryMemberEmail: secondaryEmail.trim() } : {}),
       });
-
-      await persistPartner();
 
       await addPayment(uid, {
         amount: selectedPlan?.price ?? 0,
@@ -339,6 +306,9 @@ export default function SignupPage() {
         status: paymentMethod === 'cash' ? 'pending_cash' : 'pending_verification',
         receiptUrl,
       });
+
+      // Send couple invite email for bank_transfer and cash (card is handled by Stripe webhook)
+      await dispatchCoupleInvite(expiry);
 
       setCompleted(true);
       navigate('/verify-email');
@@ -375,13 +345,24 @@ export default function SignupPage() {
         <div className="max-w-lg text-center">
           <span className="material-symbols-outlined text-primary-container text-6xl mb-6 block">check_circle</span>
           <h1 className="font-display text-headline-lg uppercase mb-4">Registration Complete!</h1>
-          <p className="text-body-lg text-on-surface-variant font-body mb-8">
+          <p className="text-body-lg text-on-surface-variant font-body mb-6">
             {paymentMethod === 'card'
               ? 'You have been redirected to complete payment securely via Stripe. After payment is confirmed, your membership will be activated automatically.'
               : paymentMethod === 'cash'
               ? 'Please make payment at the gym reception. Your membership will be activated once confirmed.'
               : 'Your bank transfer receipt has been received. Your membership will be activated once we verify payment. You will be notified within 24 hours.'}
           </p>
+          {isCouple && secondaryEmail && (
+            <div className="border border-primary-container/40 bg-surface-container-high p-4 mb-6 text-left space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary-container text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>mail</span>
+                <p className="font-label-sm text-label-sm text-primary-container uppercase tracking-widest">Couple Plan — Invite Sent</p>
+              </div>
+              <p className="font-body text-body-md text-on-surface-variant">
+                An invitation email has been sent to <strong>{secondaryEmail}</strong>. Your partner will receive a link to set up their own account.
+              </p>
+            </div>
+          )}
           <div className="space-y-3">
             <Button variant="primary" size="lg" onClick={() => navigate('/dashboard')}>GO TO DASHBOARD</Button>
             <p className="text-body-md text-on-surface-variant font-body">
@@ -531,59 +512,41 @@ export default function SignupPage() {
             </div>
           )}
 
-          {currentStepName === 'Partner Details' && (
+          {currentStepName === 'Secondary Member Email' && (
             <div className="space-y-6">
-              <h2 className="font-display text-headline-md uppercase">Partner Details</h2>
-              <p className="text-body-md text-on-surface-variant font-body">Your Annual — Couple plan covers a second member. They'll share your login — no separate account needed.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input label="Partner's Full Name" value={partner.fullName} onChange={e => setPartner(p => ({ ...p, fullName: e.target.value }))} error={errors.partnerFullName} placeholder="Jane Silva" />
-                <Input label="Partner's Date of Birth" type="date" value={partner.dob} onChange={e => setPartner(p => ({ ...p, dob: e.target.value }))} error={errors.partnerDob} />
-                <div className="flex flex-col gap-1">
-                  <label className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Partner's Gender</label>
-                  <select value={partner.gender} onChange={e => setPartner(p => ({ ...p, gender: e.target.value }))} className={`bg-surface-container border text-on-surface px-4 py-3 focus:outline-none focus:border-primary-container ${errors.partnerGender ? 'border-error' : 'border-border-default'}`}>
-                    <option value="">Select gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                  {errors.partnerGender && <span className="text-error text-label-sm">{errors.partnerGender}</span>}
+              <h2 className="font-display text-headline-md uppercase">Secondary Member</h2>
+              <div className="border border-primary-container/30 bg-surface-container-high p-5 space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-primary-container text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>people</span>
+                  <p className="font-display text-body-lg uppercase tracking-wide text-primary-container">Annual — Couple Plan</p>
                 </div>
-                <Input label="Partner's Phone Number" value={partner.phone} onChange={e => setPartner(p => ({ ...p, phone: e.target.value }))} error={errors.partnerPhone} placeholder="07X XXX XXXX" />
+                <p className="font-body text-body-md text-on-surface-variant">
+                  Your couple plan covers <strong>two members</strong>. Enter your partner's email address below. After you complete payment, they'll receive an email with a link to <strong>create their own account</strong> — no extra payment needed.
+                </p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Input label="Partner's Emergency Contact Name" value={partner.emergencyName} onChange={e => setPartner(p => ({ ...p, emergencyName: e.target.value }))} placeholder="Contact name" />
-                <Input label="Partner's Emergency Contact Phone" value={partner.emergencyPhone} onChange={e => setPartner(p => ({ ...p, emergencyPhone: e.target.value }))} placeholder="07X XXX XXXX" />
-              </div>
-
-              <h3 className="font-display text-body-lg uppercase pt-2">Partner's Health Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Input label="Height (cm)" type="number" value={partner.height} onChange={e => setPartner(p => ({ ...p, height: e.target.value }))} placeholder="165" />
-                <Input label="Weight (kg)" type="number" value={partner.weight} onChange={e => setPartner(p => ({ ...p, weight: e.target.value }))} placeholder="60" />
-                <div className="flex flex-col gap-1">
-                  <label className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">BMI (Auto)</label>
-                  <div className="bg-surface-container-high border border-border-default text-on-surface px-4 py-3 font-body text-body-md">
-                    {partnerBmi || '—'}
-                  </div>
-                </div>
-              </div>
-              <Textarea label="Pre-existing Medical Conditions" value={partner.medicalConditions} onChange={e => setPartner(p => ({ ...p, medicalConditions: e.target.value }))} placeholder="List any medical conditions, or write 'None'" rows={2} />
-              <Textarea label="Current Medications" value={partner.medications} onChange={e => setPartner(p => ({ ...p, medications: e.target.value }))} placeholder="List any medications, or write 'None'" rows={2} />
-              <Textarea label="Previous Injuries" value={partner.injuries} onChange={e => setPartner(p => ({ ...p, injuries: e.target.value }))} placeholder="List any previous injuries, or write 'None'" rows={2} />
-
-              <h3 className="font-display text-body-lg uppercase pt-2">Partner's Profile Photo</h3>
-              <div className="flex flex-col items-center gap-6">
-                {partnerPhotoPreview ? (
-                  <img src={partnerPhotoPreview} alt="Partner preview" className="w-40 h-40 object-cover border-4 border-primary-container" />
-                ) : (
-                  <div className="w-40 h-40 bg-surface-container-high border-2 border-border-default flex items-center justify-center">
-                    <span className="material-symbols-outlined text-on-surface-variant text-5xl">person</span>
-                  </div>
-                )}
-                <label className="cursor-pointer bg-primary-container text-on-primary-container px-6 py-3 font-display text-body-md uppercase hover:scale-105 transition-all">
-                  {partnerPhotoFile ? 'Change Photo' : 'Upload Partner Photo'}
-                  <input type="file" accept="image/*" className="hidden" onChange={handlePartnerPhotoChange} />
-                </label>
-                {partnerPhotoFile && <p className="text-label-sm text-on-surface-variant font-body">{partnerPhotoFile.name}</p>}
+              <Input
+                label="Secondary Member's Email Address"
+                type="email"
+                value={secondaryEmail}
+                onChange={e => setSecondaryEmail(e.target.value)}
+                error={errors.secondaryEmail}
+                placeholder="partner@email.com"
+              />
+              <div className="border border-border-default p-4 space-y-3">
+                <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">What happens next?</p>
+                <ul className="space-y-2">
+                  {[
+                    'You complete payment — this covers both members.',
+                    'An invitation email is sent to the address above.',
+                    'Your partner clicks the link to set up their own account and fill in their details.',
+                    'Both accounts share the same membership expiry.',
+                  ].map((step, i) => (
+                    <li key={i} className="flex items-start gap-3 text-body-md text-on-surface-variant font-body">
+                      <span className="w-5 h-5 flex items-center justify-center bg-primary-container text-on-primary-container text-xs font-bold shrink-0 mt-0.5">{i + 1}</span>
+                      {step}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           )}
@@ -595,7 +558,11 @@ export default function SignupPage() {
                 <div className="bg-surface-container-high p-4 border-l-4 border-primary-container">
                   <p className="font-body text-body-md text-on-surface-variant">Selected Plan:</p>
                   <p className="font-display text-headline-md">{selectedPlan.name} — LKR {selectedPlan.price.toLocaleString()}</p>
-                  {isCouple && <p className="font-body text-body-md text-on-surface-variant mt-1">Covers both you and {partner.fullName || 'your partner'} — one payment.</p>}
+                  {isCouple && (
+                    <p className="font-body text-body-md text-on-surface-variant mt-1">
+                      Covers you + <strong>{secondaryEmail || 'your partner'}</strong> — one payment.
+                    </p>
+                  )}
                 </div>
               )}
               <div className="space-y-4">

@@ -12,8 +12,10 @@ service cloud.firestore {
     // Reads the caller's OWN member doc to check role — this is the
     // Firestore-native substitute for a custom claim.
     function isAdmin() {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
     function roleUnchanged() {
@@ -51,6 +53,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /cashLedgerEntries/{entryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     // Contact enquiries — anyone can create
     match /contactEnquiries/{id} {
       allow create: if true;
@@ -62,7 +69,26 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
-     match /members/{uid}/invoices/{invoiceId} {
+    match /{path=**}/payments/{paymentId} {
+  allow read: if isAdmin();
+}
+
+    // Staff management — admin only
+    match /gym_staff/{staffId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /staff_attendance/{attendanceId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /deposits/{depositId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+    
+
+    match /members/{uid}/invoices/{invoiceId} {
       allow read:  if request.auth != null && request.auth.uid == uid;
       allow write: if false;   // server-side only via Admin SDK
     }
@@ -78,6 +104,20 @@ service cloud.firestore {
     // Server-side only — no client access needed.
     match /invoiceMeta/{doc=**} {
       allow read, write: if false;
+    }
+
+    // ── Couple invite tokens ──────────────────────────────────────────────────
+    // Publicly readable so the setup page can validate the token without auth.
+    // Only update allowed: marking used=true (one-time use), by the secondary member
+    // after they create their own account (authenticated, any user).
+    // Creation is done server-side via Admin SDK (Functions).
+    match /couple_invites/{token} {
+      allow read: if true;
+      allow create: if false;  // server-side only
+      allow update: if request.auth != null
+        && request.resource.data.used == true
+        && resource.data.used == false;
+      allow delete: if false;
     }
  
   }

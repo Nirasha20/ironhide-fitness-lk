@@ -71,6 +71,9 @@ function PaymentDetailModal({ payment, onClose, onUpdated }: { payment: AdminPay
           <div>
             <h3 className="font-display text-headline-md uppercase">{payment.memberName}</h3>
             <p className="text-body-sm text-on-surface-variant font-body">{payment.memberEmail}</p>
+            {payment.memberSecondaryEmail && (
+              <p className="text-body-sm text-on-surface-variant font-body">{payment.memberSecondaryEmail}</p>
+            )}
           </div>
           <button onClick={onClose} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface">close</button>
         </div>
@@ -199,8 +202,9 @@ function AdminPaymentsContent() {
     const q = search.toLowerCase();
     const memberName = (p.memberName || '').toLowerCase();
     const memberEmail = (p.memberEmail || '').toLowerCase();
+    const memberSecondaryEmail = (p.memberSecondaryEmail || '').toLowerCase();
     const paymentId = (p.id || '').toLowerCase();
-    return memberName.includes(q) || memberEmail.includes(q) || paymentId.includes(q);
+    return memberName.includes(q) || memberEmail.includes(q) || memberSecondaryEmail.includes(q) || paymentId.includes(q);
   });
 
   return (
@@ -278,7 +282,10 @@ function AdminPaymentsContent() {
                         </span>
                         <div>
                           <div className="font-display text-body-md">{p.memberName || 'Unknown Member'}</div>
-                          <div className="text-label-sm text-on-surface-variant font-body">{p.memberEmail || 'No email'}</div>
+                          <div className="text-label-sm text-on-surface-variant font-body">
+                            {p.memberEmail || 'No email'}
+                            {p.memberSecondaryEmail ? ` · ${p.memberSecondaryEmail}` : ''}
+                          </div>
                         </div>
                       </div>
                     </td>

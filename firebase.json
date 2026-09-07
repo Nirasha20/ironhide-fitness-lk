@@ -3,6 +3,16 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "storage": [
+    {
+      "bucket": "ironhide-fitness.appspot.com",
+      "rules": "storage.rules"
+    },
+    {
+      "bucket": "ironhide-fitness.firebasestorage.app",
+      "rules": "storage.rules"
+    }
+  ],
   "functions": [
     {
       "source": "functions",

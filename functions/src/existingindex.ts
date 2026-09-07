@@ -4,6 +4,7 @@ import type { EventContext, Change } from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { generateAndSendInvoice } from './invoiceService';
 import { sendRejectionEmail } from './invoiceService';
+import { sendSecondaryMemberInviteEmail } from './emailservice';
 
 
 
@@ -464,6 +465,9 @@ export const confirmPaymentAndVerifyEmail = functions.runWith({ secrets: ["GMAIL
       expiry.setDate(expiry.getDate() + 1);
     } else {
       expiry.setMonth(expiry.getMonth() + months);
+      if (paymentData?.plan === 'Annual — Couple' || paymentData?.plan === 'Annual') {
+        expiry.setDate(expiry.getDate() - 1);
+      }
     }
 
     await memberRef.update({
@@ -515,3 +519,66 @@ export const confirmPaymentAndVerifyEmail = functions.runWith({ secrets: ["GMAIL
     return { success: true, message: 'Payment confirmed and email verified' };
   }
 );
+
+// 7. Callable — send invite to secondary (couple plan) member
+export const sendSecondaryMemberInvite = functions
+  .runWith({ secrets: ['GMAIL_USER', 'GMAIL_PASS'] })
+  .https.onCall(
+    async (data: { primaryUid: string; secondaryEmail: string; primaryName: string; plan: string; membershipExpiry?: string }) => {
+      const { primaryUid, secondaryEmail, primaryName, plan, membershipExpiry } = data;
+
+      if (!primaryUid || !secondaryEmail || !primaryName || !plan) {
+        throw new functions.https.HttpsError('invalid-argument', 'primaryUid, secondaryEmail, primaryName, and plan are required');
+      }
+
+      const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
+
+      // Check if an unused invite already exists for this primary member
+      const existingSnap = await db
+        .collection('couple_invites')
+        .where('primaryUid', '==', primaryUid)
+        .where('used', '==', false)
+        .limit(1)
+        .get();
+
+      if (!existingSnap.empty) {
+        // Resend using existing token
+        const existingDoc = existingSnap.docs[0];
+        const setupLink = `${APP_URL}/secondary-setup?token=${existingDoc.id}`;
+        await sendSecondaryMemberInviteEmail(secondaryEmail, primaryName, plan, setupLink);
+        return { success: true, token: existingDoc.id };
+      }
+
+      // Invite token expires in 7 days
+      const inviteExpiry = new Date();
+      inviteExpiry.setDate(inviteExpiry.getDate() + 7);
+
+      const membershipExpiryDate = membershipExpiry ? new Date(membershipExpiry) : (() => {
+        const d = new Date();
+        d.setFullYear(d.getFullYear() + 1);
+        return d;
+      })();
+
+      const inviteRef = await db.collection('couple_invites').add({
+        primaryUid,
+        secondaryEmail,
+        primaryName,
+        plan,
+        membershipExpiry: admin.firestore.Timestamp.fromDate(membershipExpiryDate),
+        inviteExpiry: admin.firestore.Timestamp.fromDate(inviteExpiry),
+        used: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const setupLink = `${APP_URL}/secondary-setup?token=${inviteRef.id}`;
+
+      // Store secondaryEmail on the primary member doc so Stripe webhook can access it
+      await db.collection('members').doc(primaryUid).update({ secondaryMemberEmail: secondaryEmail });
+
+      await sendSecondaryMemberInviteEmail(secondaryEmail, primaryName, plan, setupLink);
+
+      console.log(`[sendSecondaryMemberInvite] Invite sent to ${secondaryEmail}, token: ${inviteRef.id}`);
+      return { success: true, token: inviteRef.id };
+    }
+  );
+

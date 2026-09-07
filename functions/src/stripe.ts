@@ -2,6 +2,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
 import { generateAndSendInvoice } from './invoiceService';
+import { sendSecondaryMemberInviteEmail } from './emailservice';
 
 // Stripe keys from environment variables (set in functions/.env.local or Cloud Functions config)
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
@@ -287,7 +288,11 @@ async function handlePaymentSuccess(session: any): Promise<void> {
   if (planName === 'Daily') {
     expiry.setDate(expiry.getDate() + 1);
   } else {
-    expiry.setMonth(expiry.getMonth() + (durationMonths[planName] ?? 1));
+    const months = durationMonths[planName] ?? 1;
+    expiry.setMonth(expiry.getMonth() + months);
+    if (planName === 'Annual — Couple' || planName === 'Annual') {
+      expiry.setDate(expiry.getDate() - 1);
+    }
   }
 
   const memberRef = db.collection('members').doc(uid);
@@ -378,5 +383,54 @@ async function handlePaymentSuccess(session: any): Promise<void> {
     }
   } catch (err) {
     console.warn('[Stripe] FCM push failed (non-fatal):', err);
+  }
+
+  // If this is a couple plan, send secondary member invite email (non-fatal)
+  if (planName === 'Annual — Couple') {
+    try {
+      const memberSnap3 = await memberRef.get();
+      const memberData3 = memberSnap3.data();
+      const secondaryEmail = memberData3?.secondaryMemberEmail as string | undefined;
+      const primaryName = (memberData3?.fullName as string | undefined) ?? 'Your partner';
+
+      if (secondaryEmail) {
+        // Check if invite already exists
+        const existingSnap = await db
+          .collection('couple_invites')
+          .where('primaryUid', '==', uid)
+          .where('used', '==', false)
+          .limit(1)
+          .get();
+
+        let token: string;
+        if (!existingSnap.empty) {
+          token = existingSnap.docs[0].id;
+        } else {
+          const inviteExpiry = new Date();
+          inviteExpiry.setDate(inviteExpiry.getDate() + 7);
+
+          const inviteRef = await db.collection('couple_invites').add({
+            primaryUid: uid,
+            secondaryEmail,
+            primaryName,
+            plan: planName,
+            membershipExpiry: admin.firestore.Timestamp.fromDate(expiry),
+            inviteExpiry: admin.firestore.Timestamp.fromDate(inviteExpiry),
+            used: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          token = inviteRef.id;
+        }
+
+        const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
+        const setupLink = `${APP_URL}/secondary-setup?token=${token}`;
+        await sendSecondaryMemberInviteEmail(secondaryEmail, primaryName, planName, setupLink);
+        console.log(`[Stripe] Couple invite email sent to ${secondaryEmail} for uid: ${uid}`);
+      } else {
+        console.warn(`[Stripe] Couple plan but no secondaryMemberEmail found on member doc for uid: ${uid}`);
+      }
+    } catch (err) {
+      console.warn('[Stripe] Couple invite email failed (non-fatal):', err);
+    }
   }
 }

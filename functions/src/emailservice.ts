@@ -181,6 +181,94 @@ export async function sendVerificationEmailAfterPayment(
 }
 
 /**
+ * Send invite email to secondary couple-plan member
+ */
+export async function sendSecondaryMemberInviteEmail(
+  secondaryEmail: string,
+  primaryName: string,
+  plan: string,
+  setupLink: string
+): Promise<void> {
+  const { user, pass } = getCredentials();
+  if (!user || !pass) {
+    console.warn('[EmailService] Gmail not configured. Skipping secondary member invite email.');
+    return;
+  }
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f5f5f5; }
+          .container { max-width: 600px; margin: 40px auto; background: #fff; }
+          .header { background: #cc0000; color: white; padding: 32px 24px; text-align: center; }
+          .header h1 { margin: 0; font-size: 28px; letter-spacing: 4px; font-weight: 900; }
+          .header p { margin: 8px 0 0; font-size: 13px; letter-spacing: 2px; opacity: 0.85; }
+          .body { padding: 36px 32px; }
+          .badge { display: inline-block; background: #cc0000; color: white; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: bold; letter-spacing: 1px; margin-bottom: 24px; }
+          .info-box { background: #f9f9f9; border-left: 4px solid #cc0000; padding: 20px 24px; margin: 24px 0; }
+          .info-box p { margin: 6px 0; font-size: 14px; color: #555; }
+          .cta { text-align: center; margin: 36px 0 24px; }
+          .button { display: inline-block; background: #cc0000; color: white !important; padding: 16px 40px; text-decoration: none; font-weight: bold; font-size: 15px; letter-spacing: 2px; border-radius: 2px; }
+          .note { font-size: 12px; color: #888; text-align: center; margin-top: 16px; }
+          .footer { background: #111; color: #888; text-align: center; padding: 20px; font-size: 12px; }
+          .footer a { color: #cc0000; text-decoration: none; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>IRONHIDE FITNESS</h1>
+            <p>114C NEGOMBO RD, WATTALA</p>
+          </div>
+          <div class="body">
+            <span class="badge">COUPLE MEMBERSHIP</span>
+            <h2 style="margin: 0 0 12px; font-size: 22px; color: #111;">You've been registered!</h2>
+            <p style="color: #555; font-size: 15px;">
+              <strong>${primaryName}</strong> has registered you as part of their <strong>${plan}</strong> membership at IronHide Fitness.
+            </p>
+            <p style="color: #555; font-size: 15px;">
+              Your membership is already active! All you need to do is set up your personal account — it only takes a minute.
+            </p>
+            <div class="info-box">
+              <p>✅ <strong>Membership plan:</strong> ${plan}</p>
+              <p>✅ <strong>No payment required</strong> — covered by your partner</p>
+              <p>✅ <strong>Full gym access</strong> included</p>
+            </div>
+            <div class="cta">
+              <a href="${setupLink}" class="button">SET UP MY ACCOUNT →</a>
+            </div>
+            <p class="note">
+              This link is unique to you and expires in 7 days.<br>
+              If you did not expect this email, please ignore it or contact us.
+            </p>
+          </div>
+          <div class="footer">
+            <p>Questions? Call <a href="tel:+94703222211">+94 70 322 2211</a> or email <a href="mailto:support@ironhidefitness.lk">support@ironhidefitness.lk</a></p>
+            <p style="margin-top: 8px;">© 2026 IronHide Fitness. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  try {
+    await createTransporter().sendMail({
+      from: `IronHide Fitness <${user}>`,
+      to: secondaryEmail,
+      subject: `${primaryName} has registered you at IronHide Fitness — Set up your account`,
+      html: htmlContent,
+    });
+    console.log(`[EmailService] Secondary member invite email sent to ${secondaryEmail}`);
+  } catch (err) {
+    console.error('[EmailService] Failed to send secondary member invite email:', err);
+    throw err;
+  }
+}
+
+/**
  * Send payment confirmation email
  */
 export async function sendPaymentConfirmationEmail(

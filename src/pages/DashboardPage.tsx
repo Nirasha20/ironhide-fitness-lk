@@ -6,44 +6,16 @@ import { DashboardSkeleton } from '../components/ui/Skeleton';
 import { useMember } from '../hooks/useMember';
 import { formatDate } from '../lib/utils';
 import { useEffect, useState } from 'react';
-import { getNotifications, getMember, getPartners } from '../lib/memberService';
+import { getNotifications } from '../lib/memberService';
 import { useAuth } from '../hooks/useAuth';
 import { registerFCMToken } from '../lib/notifications';
-import type { Notification, Partner } from '../types';
-
-function LinkedMemberCard({ uid }: { uid: string }) {
-  const [partner, setPartner] = useState<{ fullName: string; membershipStatus: string } | null>(null);
-  useEffect(() => {
-    getMember(uid).then(m => { if (m) setPartner({ fullName: m.fullName, membershipStatus: m.membershipStatus }); });
-  }, [uid]);
-  if (!partner) return null;
-  return (
-    <div className="md:col-span-12 bg-surface-container border-t-2 border-primary-container p-6 flex items-center gap-4">
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cc0000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-      <div>
-        <p className="font-label-sm text-label-sm text-primary-container uppercase tracking-widest">Linked Partner Account</p>
-        <p className="font-display text-headline-md">{partner.fullName}</p>
-      </div>
-      <div className="ml-auto">
-        <Badge status={partner.membershipStatus as 'active' | 'expired' | 'pending_verification' | 'pending_cash' | 'rejected'} />
-      </div>
-    </div>
-  );
-}
-
+import type { Notification } from '../types';
 
 function DashboardContent() {
   const location = useLocation();
   const { member, loading } = useMember();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [partner, setPartner] = useState<Partner | null>(null);
-  const [partnerLoading, setPartnerLoading] = useState(false);
   const [showActivatedToast, setShowActivatedToast] = useState(
     (location.state as { stripeActivated?: boolean })?.stripeActivated === true
   );
@@ -53,20 +25,6 @@ function DashboardContent() {
     getNotifications(user.uid).then(n => setNotifications(n.slice(0, 5))).catch(() => {});
     registerFCMToken(user.uid).catch(() => {});
   }, [user]);
-
-  useEffect(() => {
-    if (!member || !member.uid || !member.membershipTier?.includes('Couple')) {
-      setPartner(null);
-      setPartnerLoading(false);
-      return;
-    }
-
-    setPartnerLoading(true);
-    getPartners(member.uid)
-      .then(partners => setPartner(partners[0] ?? null))
-      .catch(() => setPartner(null))
-      .finally(() => setPartnerLoading(false));
-  }, [member]);
 
   if (loading) return <DashboardSkeleton />;
 
@@ -106,17 +64,6 @@ function DashboardContent() {
                 </div>
               )}
             </div>
-            {member?.membershipTier?.includes('Couple') && (
-              <div className="w-48 h-48 flex-shrink-0 border-4 border-primary-container overflow-hidden" style={{ boxShadow: '0 0 10px #cc0000' }}>
-                {partner?.photoUrl ? (
-                  <img src={partner.photoUrl} alt="Partner" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
-                    <span className="material-symbols-outlined text-on-surface-variant text-6xl">person</span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
           <div className="flex-grow space-y-4 z-10 text-center md:text-left">
             <div>
@@ -143,21 +90,6 @@ function DashboardContent() {
               <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">Membership Expires</p>
               <p className="font-display text-headline-md">{member?.membershipExpiry ? formatDate(member.membershipExpiry) : '—'}</p>
             </div>
-            {member?.membershipTier?.includes('Couple') && (
-              <div className="border-t border-surface-variant pt-4 mt-4">
-                <p className="font-label-sm text-label-sm text-primary-container uppercase tracking-widest">Partner</p>
-                {partnerLoading ? (
-                  <p className="text-body-sm text-on-surface-variant mt-2">Loading partner details…</p>
-                ) : partner ? (
-                  <div className="mt-4">
-                    <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">Locker No.</p>
-                    <p className="font-display text-headline-md">—</p>
-                  </div>
-                ) : (
-                  <p className="text-body-sm text-on-surface-variant mt-2">No partner details available yet.</p>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -191,10 +123,6 @@ function DashboardContent() {
             </Link>
           </div>
         </div>
-
-        {(member as (typeof member & { linkedMemberUid?: string }))?.linkedMemberUid && (
-          <LinkedMemberCard uid={(member as (typeof member & { linkedMemberUid?: string }))!.linkedMemberUid!} />
-        )}
 
         {/* Notifications */}
         <div className="md:col-span-12 bg-surface-container border-t-2 border-primary-container p-6">

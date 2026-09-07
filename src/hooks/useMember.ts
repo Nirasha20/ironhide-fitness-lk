@@ -18,16 +18,47 @@ export function useMember() {
       return;
     }
 
+    let primaryUnsubscribe: (() => void) | undefined;
+
     const unsubscribe = onSnapshot(
       doc(db, 'members', user.uid),
       (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          // snap.data() returns DocumentData; cast via unknown to satisfy TypeScript
-          setMember({ ...(data as unknown as Member), id: snap.id, uid: snap.id });
-        } else {
+        if (!snap.exists()) {
           setMember(null);
+          setLoading(false);
+          return;
         }
+
+        const data = snap.data() as unknown as Member;
+        const currentMember = { ...(data as Member), id: snap.id, uid: snap.id } as MemberWithId;
+
+        if (data.isSecondaryMember && data.linkedPrimaryUid) {
+          primaryUnsubscribe?.();
+          primaryUnsubscribe = onSnapshot(doc(db, 'members', data.linkedPrimaryUid), (primarySnap) => {
+            const primaryData = primarySnap.exists() ? (primarySnap.data() as unknown as Member) : null;
+            const primaryStatus = primaryData?.membershipStatus;
+            const currentStatus = currentMember.membershipStatus;
+            const membershipStatus =
+              primaryStatus === 'expired' || primaryStatus === 'rejected'
+                ? primaryStatus
+                : currentStatus !== 'active'
+                  ? currentStatus
+                  : primaryStatus ?? currentStatus;
+
+            setMember({
+              ...currentMember,
+              membershipStatus,
+              membershipTier: primaryData?.membershipTier ?? currentMember.membershipTier,
+              membershipExpiry: (primaryData as Member | null)?.membershipExpiry ?? currentMember.membershipExpiry,
+            });
+          }, () => {
+            setError('Failed to load primary member data');
+          });
+        } else {
+          primaryUnsubscribe?.();
+          setMember(currentMember);
+        }
+
         setLoading(false);
       },
       () => {
@@ -36,7 +67,10 @@ export function useMember() {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      primaryUnsubscribe?.();
+    };
   }, [user]);
 
   return { member, loading, error };

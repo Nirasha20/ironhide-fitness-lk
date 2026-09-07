@@ -8,6 +8,7 @@ export {
   onCapacityThreshold,
   onPaymentStatusChanged,
   confirmPaymentAndVerifyEmail,
+  sendSecondaryMemberInvite,
 } from './existingindex';
 
 // Export new Stripe functions

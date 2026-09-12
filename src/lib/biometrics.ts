@@ -14,8 +14,8 @@ export async function authenticateWithBiometric(): Promise<boolean> {
   try {
     const { NativeBiometric } = await import('@capgo/capacitor-native-biometric');
     await NativeBiometric.verifyIdentity({
-      reason: 'Verify your identity to access IronHide',
-      title: 'IronHide Login',
+      reason: 'Verify your identity to access IronHide Fitness',
+      title: 'IronHide Fitness Login',
       subtitle: 'Use Face ID or fingerprint',
       description: '',
     });

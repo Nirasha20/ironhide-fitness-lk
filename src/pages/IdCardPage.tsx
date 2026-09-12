@@ -87,7 +87,7 @@ function IdCardContent() {
                 <p className="font-label-sm text-label-sm">{formatDate(member.membershipExpiry)}</p>
               </div>
             </div>
-            <QRCode value={`IRONHIDE:${member.uid}`} size={100} />
+            <QRCode value={`IRONHIDE FITNESS:${member.uid}`} size={100} />
           </div>
 
           {/* Decorative bg text */}

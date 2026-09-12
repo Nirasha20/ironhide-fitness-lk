@@ -41,13 +41,11 @@ service cloud.firestore {
       }
     }
 
-    // Announcements — public read
     match /announcements/{id} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Membership plans — public read
     match /membershipPlans/{id} {
       allow read: if true;
       allow write: if isAdmin();
@@ -64,7 +62,6 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
-    // Gym occupancy — public read
     match /gym_meta/{id} {
       allow read: if true;
       allow write: if isAdmin();

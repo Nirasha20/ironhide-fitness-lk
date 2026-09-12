@@ -67,34 +67,32 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Membership Plans Preview */}
+      {/* Membership Plans */}
       <section className="py-section-gap px-margin-mobile md:px-margin-desktop max-w-container mx-auto">
         <div className="flex flex-col items-center mb-16 text-center">
           <h2 className="font-display text-headline-lg text-on-surface mb-4">MEMBERSHIP PLANS</h2>
           <p className="text-body-lg text-on-surface-variant max-w-2xl font-body">Choose your path to excellence. No contracts, no excuses.</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { name: 'SQUAD', price: 'LKR 5,000', period: '/ month', features: ['General Gym Access', 'Locker Room & Showers'], popular: false },
-            { name: 'CHAMPION', price: 'LKR 8,500', period: '/ month', features: ['24/7 Access Included', 'Free Training Program', 'Supplement Discounts'], popular: true },
-            { name: 'TITAN', price: 'LKR 15,000', period: '/ month', features: ['All Champion Features', '1-on-1 Coaching Session', 'VIP Recovery Access'], popular: false },
+            { tier: 'Trial', name: 'DAILY', price: 'LKR 500', period: '/DAY', popular: false },
+            { tier: 'Foundation', name: 'MONTHLY', price: 'LKR 5,000', period: '/MO', popular: false },
+            { tier: 'Elite', name: 'ANNUAL', price: 'LKR 48,000', period: '/YR', popular: true },
+            { tier: 'Duo', name: 'ANNUAL — COUPLE', price: 'LKR 80,000', period: '/YR', popular: false },
           ].map(plan => (
-            <div key={plan.name} className={`bg-surface-container p-10 flex flex-col relative ${plan.popular ? 'border-2 border-primary-container scale-105 z-10 crimson-glow' : 'border border-surface-container-highest'}`}>
-              {plan.popular && <div className="absolute top-0 right-0 bg-primary-container text-on-primary-container px-4 py-1 font-label-sm text-label-sm uppercase">MOST POPULAR</div>}
-              <h3 className={`font-display text-headline-md mb-2 ${plan.popular ? 'text-primary-container' : 'text-on-surface'}`}>{plan.name}</h3>
-              <div className="flex items-baseline mt-2 mb-8">
-                <span className="text-4xl font-bold text-on-surface">{plan.price}</span>
-                <span className="text-on-surface-variant ml-2 font-body">{plan.period}</span>
+            <div key={plan.name} className={`bg-[#111111] p-8 flex flex-col items-center relative transition-all hover:-translate-y-2 ${plan.popular ? 'border-2 border-primary-container scale-105 z-10 crimson-glow' : 'border-t-2 border-t-primary-container border border-[#333333]'}`}>
+              {plan.popular && <div className="absolute -top-4 bg-primary-container text-white font-label-sm text-label-sm px-4 py-1 uppercase font-extrabold tracking-widest">MOST POPULAR</div>}
+              <span className="bg-[#000000] border border-primary-container text-primary-container font-label-sm text-label-sm px-4 py-1 mb-6 uppercase tracking-widest">{plan.tier}</span>
+              <h3 className="font-display text-headline-lg mb-2 text-center">{plan.name}</h3>
+              <div className="flex items-baseline mb-8">
+                <span className="font-display text-4xl">{plan.price}</span>
+                <span className="font-label-sm text-label-sm text-on-secondary-container ml-2">{plan.period}</span>
               </div>
-              <ul className="space-y-4 mb-10 flex-grow">
-                {plan.features.map(f => (
-                  <li key={f} className="flex items-center gap-3 text-on-surface-variant font-body text-body-md">
-                    <span className="material-symbols-outlined text-primary-container" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link to="/signup" className={`w-full py-4 font-display text-headline-md uppercase tracking-wider text-center transition-all hover:scale-105 active:scale-95 ${plan.popular ? 'bg-primary-container text-on-primary-container' : 'border border-on-surface text-on-surface hover:bg-on-surface hover:text-background'}`}>
+              <div className="w-full mb-10 flex items-center gap-3 text-on-secondary-container font-body text-body-md">
+                <span className="material-symbols-outlined text-primary-container" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                Locker Room
+              </div>
+              <Link to="/signup" className="w-full bg-primary-container text-white py-4 font-display text-headline-md uppercase hover:scale-105 active:scale-95 transition-all text-center block mt-auto">
                 JOIN NOW
               </Link>
             </div>

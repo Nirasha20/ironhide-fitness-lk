@@ -7,10 +7,6 @@ const plans = [
     name: 'DAILY',
     price: '500',
     period: '/DAY',
-    features: [
-      { text: '24/7 Access', available: true },
-      { text: 'Locker Room', available: true },
-    ],
     popular: false,
   },
   {
@@ -18,11 +14,6 @@ const plans = [
     name: 'MONTHLY',
     price: '5,000',
     period: '/MO',
-    features: [
-      { text: '24/7 Access', available: true },
-      { text: 'Locker Room', available: true },
-      { text: 'Standard Equipment', available: true },
-    ],
     popular: false,
   },
   {
@@ -30,12 +21,6 @@ const plans = [
     name: 'ANNUAL',
     price: '48,000',
     period: '/YR',
-    features: [
-      { text: 'Unlimited Access', available: true },
-      { text: 'PT Sessions', available: true },
-      { text: 'Apparel Kit', available: true },
-      { text: 'VIP Lounge', available: true },
-    ],
     popular: true,
   },
   {
@@ -43,11 +28,6 @@ const plans = [
     name: 'ANNUAL — COUPLE',
     price: '80,000',
     period: '/YR',
-    features: [
-      { text: 'Everything in Annual', available: true },
-      { text: 'Partner Account Included', available: true },
-      { text: 'Shared Expiry', available: true },
-    ],
     popular: false,
   },
 ];
@@ -88,16 +68,10 @@ export default function MembershipPage() {
                   <span className="font-display text-6xl ml-1">{plan.price}</span>
                   <span className="font-label-sm text-label-sm text-on-secondary-container ml-2">{plan.period}</span>
                 </div>
-                <ul className="w-full space-y-4 mb-10 text-on-secondary-container">
-                  {plan.features.map(f => (
-                    <li key={f.text} className={`flex items-center gap-3 font-body text-body-md ${f.available ? '' : 'opacity-30'}`}>
-                      <span className="material-symbols-outlined text-primary-container" style={f.available ? { fontVariationSettings: "'FILL' 1" } : {}}>
-                        {f.available ? 'check_circle' : 'block'}
-                      </span>
-                      {f.text}
-                    </li>
-                  ))}
-                </ul>
+                <div className="w-full mb-10 flex items-center gap-3 text-on-secondary-container font-body text-body-md">
+                  <span className="material-symbols-outlined text-primary-container" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  Locker Room
+                </div>
                 <Link to="/signup" className="w-full bg-primary-container text-white py-4 font-display text-headline-md uppercase hover:scale-105 active:scale-95 transition-all text-center block">
                   JOIN NOW
                 </Link>

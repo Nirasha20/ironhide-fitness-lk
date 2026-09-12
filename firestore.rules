@@ -24,7 +24,7 @@ service cloud.firestore {
     }
 
     // Contact enquiries — anyone can create
-    match /contactEnquiries/{id} {
+    match /contact_enquiries/{id} {
       allow create: if true;
       allow read, update, delete: if false;
     }

@@ -47,5 +47,5 @@ export async function getMembershipPlans(): Promise<MembershipPlan[]> {
 }
 
 export async function addContactEnquiry(data: Omit<ContactEnquiry, 'createdAt'>): Promise<void> {
-  await addDoc(collection(db, 'contact_enquiries'), { ...data, createdAt: serverTimestamp() });
+  await addDoc(collection(db, 'contactEnquiries'), { ...data, createdAt: serverTimestamp() });
 }

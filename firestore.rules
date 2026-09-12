@@ -2,37 +2,77 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Members can read/write their own document and all sub-collections
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        get(/databases/$(database)/documents/members/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function roleUnchanged() {
+      return !('role' in request.resource.data) ||
+        request.resource.data.role == resource.data.role;
+    }
+
     match /members/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && request.resource.data.role == 'customer';
+      allow update: if (isOwner(uid) && roleUnchanged()) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /partners/{partnerId} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
 
       match /{subcollection}/{docId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read, write: if isOwner(uid) || isAdmin();
       }
     }
 
-    // Announcements — public read
     match /announcements/{id} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
-    // Membership plans — public read
     match /membershipPlans/{id} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
+    }
+
+    match /cashLedgerEntries/{entryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
 
     // Contact enquiries — anyone can create
-    match /contact_enquiries/{id} {
+    match /contactEnquiries/{id} {
       allow create: if true;
-      allow read, update, delete: if false;
+      allow read, update, delete: if isAdmin();
     }
 
-    // Gym occupancy — public read
     match /gym_meta/{id} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
+    }
+
+    match /{path=**}/payments/{paymentId} {
+      allow read: if isAdmin();
+    }
+
+    match /gym_staff/{staffId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /staff_attendance/{attendanceId} {
+      allow read, write: if isAdmin();
     }
   }
 }

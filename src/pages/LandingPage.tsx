@@ -14,9 +14,9 @@ export default function LandingPage() {
         </div>
         <div className="relative z-10 w-full max-w-container mx-auto px-margin-mobile md:px-margin-desktop text-center md:text-left">
           <h1 className="font-display text-[60px] md:text-display-lg leading-tight mb-8">
-            <span className="text-on-surface block">WHERE</span>
-            <span className="text-primary-container block -mt-4">CHAMPIONS</span>
-            <span className="text-on-surface block -mt-4">ARE BUILT</span>
+            <span className="text-on-surface block">STRONGER</span>
+            <span className="text-primary-container block -mt-4">THAN</span>
+            <span className="text-on-surface block -mt-4">YESTERDAY</span>
           </h1>
           <div className="flex flex-col md:flex-row gap-4 justify-center md:justify-start">
             <Link to="/signup" className="bg-primary-container text-on-primary-container px-10 py-4 font-display text-headline-md tracking-widest crimson-glow transition-all active:scale-95 hover:scale-105 text-center">
@@ -75,10 +75,10 @@ export default function LandingPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { tier: 'Trial', name: 'DAILY', price: 'LKR 500', period: '/DAY', popular: false },
-            { tier: 'Foundation', name: 'MONTHLY', price: 'LKR 5,000', period: '/MO', popular: false },
-            { tier: 'Elite', name: 'ANNUAL', price: 'LKR 48,000', period: '/YR', popular: true },
-            { tier: 'Duo', name: 'ANNUAL — COUPLE', price: 'LKR 80,000', period: '/YR', popular: false },
+            { name: 'DAILY', price: 'LKR 2,500', period: '/DAY', features: ['24/7 Access', 'Locker Room'], popular: false },
+            { name: 'MONTHLY', price: 'LKR 15,000', period: '/MO', features: ['24/7 Access', 'Locker Room', 'Standard Equipment'], popular: false },
+            { name: 'ANNUAL', price: 'LKR 165,000', period: '/YR', features: ['Unlimited Access', 'PT Sessions', 'Apparel Kit', 'VIP Lounge'], popular: true },
+            { name: 'ANNUAL — COUPLE', price: 'LKR 310,000', period: '/YR', features: ['Everything in Annual', 'Partner Account Included', 'Shared Expiry'], popular: false },
           ].map(plan => (
             <div key={plan.name} className={`bg-[#111111] p-8 flex flex-col items-center relative transition-all hover:-translate-y-2 ${plan.popular ? 'border-2 border-primary-container scale-105 z-10 crimson-glow' : 'border-t-2 border-t-primary-container border border-[#333333]'}`}>
               {plan.popular && <div className="absolute -top-4 bg-primary-container text-white font-label-sm text-label-sm px-4 py-1 uppercase font-extrabold tracking-widest">MOST POPULAR</div>}

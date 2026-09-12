@@ -22,6 +22,15 @@ allprojects {
         google()
         mavenCentral()
     }
+    configurations.all {
+        resolutionStrategy {
+            force 'org.bouncycastle:bcprov-jdk15on:1.70'
+            force 'org.bouncycastle:bcpkix-jdk15on:1.70'
+        }
+        exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
+        exclude group: 'org.bouncycastle', module: 'bcpkix-jdk18on'
+    }
+
 }
 
 task clean(type: Delete) {

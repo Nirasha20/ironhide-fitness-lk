@@ -9,7 +9,8 @@ service cloud.firestore {
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
-
+    // Reads the caller's OWN member doc to check role — this is the
+    // Firestore-native substitute for a custom claim.
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.admin == true ||
@@ -22,15 +23,18 @@ service cloud.firestore {
         request.resource.data.role == resource.data.role;
     }
 
+    // Members can read/write their own document and all sub-collections
     match /members/{uid} {
+      // Owner can read/write their own doc, but can NEVER touch the role field.
+      // Admin can read/write ANY member doc, including role.
       allow read: if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid) && request.resource.data.role == 'customer';
       allow update: if (isOwner(uid) && roleUnchanged()) || isAdmin();
       allow delete: if isAdmin();
 
-      match /partners/{partnerId} {
-        allow read, write: if isOwner(uid) || isAdmin();
-      }
+       match /partners/{partnerId} {
+    allow read, write: if isOwner(uid) || isAdmin();
+       }
 
       match /{subcollection}/{docId} {
         allow read, write: if isOwner(uid) || isAdmin();
@@ -62,11 +66,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
-
     match /{path=**}/payments/{paymentId} {
-      allow read: if isAdmin();
-    }
+  allow read: if isAdmin();
+}
 
+    // Staff management — admin only
     match /gym_staff/{staffId} {
       allow read, write: if isAdmin();
     }
@@ -74,5 +78,44 @@ service cloud.firestore {
     match /staff_attendance/{attendanceId} {
       allow read, write: if isAdmin();
     }
+
+    match /deposits/{depositId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+    
+
+    match /members/{uid}/invoices/{invoiceId} {
+      allow read:  if request.auth != null && request.auth.uid == uid;
+      allow write: if false;   // server-side only via Admin SDK
+    }
+ 
+    // ── Global invoices collection (admin use) ────────────────────────────────
+    // Only authenticated admins with a custom claim can read; no client writes.
+    match /invoices/{invoiceId} {
+      allow read:  if request.auth != null && request.auth.token.admin == true;
+      allow write: if false;
+    }
+ 
+    // ── Invoice serial number counters ────────────────────────────────────────
+    // Server-side only — no client access needed.
+    match /invoiceMeta/{doc=**} {
+      allow read, write: if false;
+    }
+
+    // ── Couple invite tokens ──────────────────────────────────────────────────
+    // Publicly readable so the setup page can validate the token without auth.
+    // Only update allowed: marking used=true (one-time use), by the secondary member
+    // after they create their own account (authenticated, any user).
+    // Creation is done server-side via Admin SDK (Functions).
+    match /couple_invites/{token} {
+      allow read: if true;
+      allow create: if false;  // server-side only
+      allow update: if request.auth != null
+        && request.resource.data.used == true
+        && resource.data.used == false;
+      allow delete: if false;
+    }
+ 
   }
 }

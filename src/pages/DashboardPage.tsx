@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { AuthGuard } from '../components/layout/AuthGuard';
 import { Badge } from '../components/ui/Badge';
@@ -6,40 +6,19 @@ import { DashboardSkeleton } from '../components/ui/Skeleton';
 import { useMember } from '../hooks/useMember';
 import { formatDate } from '../lib/utils';
 import { useEffect, useState } from 'react';
-import { getNotifications, getMember } from '../lib/memberService';
+import { getNotifications } from '../lib/memberService';
 import { useAuth } from '../hooks/useAuth';
 import { registerFCMToken } from '../lib/notifications';
 import type { Notification } from '../types';
 
-function LinkedMemberCard({ uid }: { uid: string }) {
-  const [partner, setPartner] = useState<{ fullName: string; membershipStatus: string } | null>(null);
-  useEffect(() => {
-    getMember(uid).then(m => { if (m) setPartner({ fullName: m.fullName, membershipStatus: m.membershipStatus }); });
-  }, [uid]);
-  if (!partner) return null;
-  return (
-    <div className="md:col-span-12 bg-surface-container border-t-2 border-primary-container p-6 flex items-center gap-4">
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cc0000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-      <div>
-        <p className="font-label-sm text-label-sm text-primary-container uppercase tracking-widest">Linked Partner Account</p>
-        <p className="font-display text-headline-md">{partner.fullName}</p>
-      </div>
-      <div className="ml-auto">
-        <Badge status={partner.membershipStatus as 'active' | 'expired' | 'pending_verification' | 'pending_cash'} />
-      </div>
-    </div>
-  );
-}
-
 function DashboardContent() {
+  const location = useLocation();
   const { member, loading } = useMember();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showActivatedToast, setShowActivatedToast] = useState(
+    (location.state as { stripeActivated?: boolean })?.stripeActivated === true
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -51,6 +30,17 @@ function DashboardContent() {
 
   return (
     <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-12">
+      {showActivatedToast && (
+  <div className="mb-6 flex items-center gap-3 border border-green-500 bg-green-500/10 p-4">
+    <span className="material-symbols-outlined text-green-400">check_circle</span>
+    <p className="font-body text-body-md text-green-400 flex-1">
+      Membership activated! Welcome to IronHide.
+    </p>
+    <button onClick={() => setShowActivatedToast(false)}>
+      <span className="material-symbols-outlined text-on-surface-variant text-sm">close</span>
+    </button>
+  </div>
+)}
       <div className="mb-12">
         <h1 className="font-display text-headline-lg uppercase mb-2" style={{ textShadow: '0 0 15px rgba(204,0,0,0.4)' }}>
           Welcome Back{member ? `, ${member.fullName.split(' ')[0]}` : ''}.
@@ -64,14 +54,16 @@ function DashboardContent() {
           <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
             <span className="font-display text-[120px] leading-none uppercase select-none">CHAMPION</span>
           </div>
-          <div className="w-48 h-48 flex-shrink-0 border-4 border-primary-container overflow-hidden" style={{ boxShadow: '0 0 10px #cc0000' }}>
-            {member?.photoUrl ? (
-              <img src={member.photoUrl} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-surface-variant text-6xl">person</span>
-              </div>
-            )}
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-48 h-48 flex-shrink-0 border-4 border-primary-container overflow-hidden" style={{ boxShadow: '0 0 10px #cc0000' }}>
+              {member?.photoUrl ? (
+                <img src={member.photoUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-surface-container-high flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-surface-variant text-6xl">person</span>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex-grow space-y-4 z-10 text-center md:text-left">
             <div>
@@ -131,10 +123,6 @@ function DashboardContent() {
             </Link>
           </div>
         </div>
-
-        {(member as (typeof member & { linkedMemberUid?: string }))?.linkedMemberUid && (
-          <LinkedMemberCard uid={(member as (typeof member & { linkedMemberUid?: string }))!.linkedMemberUid!} />
-        )}
 
         {/* Notifications */}
         <div className="md:col-span-12 bg-surface-container border-t-2 border-primary-container p-6">

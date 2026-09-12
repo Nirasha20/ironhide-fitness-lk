@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../lib/firebase';
-import { getMember, updateMember } from '../lib/memberService';
+import { getMember, updateMember, getPartners } from '../lib/memberService';
 import { calculateBMI } from '../lib/utils';
 import { PageWrapper } from '../components/layout/PageWrapper';
 import { AuthGuard } from '../components/layout/AuthGuard';
@@ -28,22 +28,27 @@ function ProfileContent() {
 
   useEffect(() => {
     if (!user) return;
-    getMember(user.uid).then(m => {
-      if (!m) return;
-      setMember(m);
-      setForm({
-        fullName: m.fullName,
-        phone: m.phone,
-        address: m.address,
-        emergencyName: m.emergencyContact.name,
-        emergencyPhone: m.emergencyContact.phone,
-        height: String(m.height),
-        weight: String(m.weight),
-        medicalConditions: m.medicalConditions,
-        medications: m.medications,
-        injuries: m.injuries,
+    Promise.all([getMember(user.uid), getPartners(user.uid)])
+      .then(([m]) => {
+        if (m) {
+          setMember(m);
+          setForm({
+            fullName: m.fullName,
+            phone: m.phone,
+            address: m.address,
+            emergencyName: m.emergencyContact.name,
+            emergencyPhone: m.emergencyContact.phone,
+            height: String(m.height),
+            weight: String(m.weight),
+            medicalConditions: m.medicalConditions,
+            medications: m.medications,
+            injuries: m.injuries,
+          });
+        }
+      })
+      .finally(() => {
+        setLoading(false);
       });
-    }).finally(() => setLoading(false));
   }, [user]);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,7 +113,7 @@ function ProfileContent() {
   return (
     <div className="max-w-container mx-auto px-margin-mobile md:px-margin-desktop py-12">
       <h1 className="font-display text-headline-lg uppercase mb-4">EDIT PROFILE</h1>
-      <div className="w-24 h-1 bg-primary-container mb-12" />
+      <div className="w-24 h-1 bg-primary-container mb-6" />
 
       <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div className="flex flex-col items-center gap-6">
@@ -157,6 +162,7 @@ function ProfileContent() {
           </div>
         </div>
       </form>
+
     </div>
   );
 }

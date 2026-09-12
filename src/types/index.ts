@@ -16,8 +16,32 @@ export interface Member {
   photoUrl: string;
   lockerNumber: string;
   membershipTier: string;
-  membershipStatus: 'active' | 'expired' | 'pending_verification' | 'pending_cash';
+  membershipStatus: 'active' | 'expired' | 'pending_verification' | 'pending_cash' | 'rejected';
   membershipExpiry: Date;
+  role: 'customer' | 'admin';
+  createdAt: Date;
+  // Couple plan fields
+  secondaryMemberEmail?: string;    // stored on primary member doc
+  linkedPrimaryUid?: string;        // stored on secondary member doc
+  isSecondaryMember?: boolean;      // true for secondary couple-plan members
+}
+
+
+export interface Partner {
+  id: string;
+  fullName: string;
+  dob: Date;
+  gender: string;
+  phone: string;
+  address: string;
+  emergencyContact: { name: string; phone: string };
+  height: number | null;
+  weight: number | null;
+  bmi: number | null;
+  medicalConditions: string;
+  medications: string;
+  injuries: string;
+  photoUrl: string;
   createdAt: Date;
 }
 
@@ -53,4 +77,24 @@ export interface ContactEnquiry {
   email: string;
   message: string;
   createdAt: Date;
+}
+
+export interface StaffMember {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  role: string;
+  department: string;
+  status: 'active' | 'inactive';
+  createdAt: Date;
+}
+
+export interface StaffAttendanceRecord {
+  id: string;
+  staffId: string;
+  date: string;
+  status: 'present' | 'absent' | 'leave' | 'off';
+  note: string;
+  updatedAt: Date;
 }

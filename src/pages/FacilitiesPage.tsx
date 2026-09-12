@@ -47,7 +47,7 @@ export default function FacilitiesPage() {
             <h2 className="font-display text-headline-lg uppercase mb-2">THE ARSENAL</h2>
             <div className="w-24 h-1 bg-primary-container" />
           </div>
-          <p className="text-body-md text-on-surface-variant md:max-w-md font-body">Precision-engineered environments designed for maximum output. Every square inch of IronHide Fitness is optimized for elite performance.</p>
+          <p className="text-body-md text-on-surface-variant md:max-w-md font-body">Precision-engineered environments designed for maximum output. Every square inch of IronHide fitness is optimized for elite performance.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
           {facilities.map(f => (

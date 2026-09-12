@@ -15,7 +15,7 @@ const statusConfig = {
 };
 
 export function Badge({ status, children }: BadgeProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status as keyof typeof statusConfig] ?? statusConfig.pending_verification;
   return (
     <span className={`font-label-sm text-label-sm border px-3 py-1 uppercase tracking-widest ${config.color}`}>
       {children ?? config.label}

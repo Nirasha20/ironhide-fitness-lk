@@ -38,7 +38,7 @@ function HamburgerIcon({ open }: { open: boolean }) {
 }
 
 export function Navbar() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -74,7 +74,9 @@ export function Navbar() {
   return (
     <header ref={menuRef} className="sticky top-0 z-50 border-b border-surface-container-highest bg-surface" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop py-4 max-w-container mx-auto">
-        <Link to="/" className="font-display text-headline-md text-on-surface uppercase tracking-wider">IRONHIDE FITNESS</Link>
+        <Link to={role === 'admin' ? '/admin' : '/'} className="font-display text-headline-md text-on-surface uppercase tracking-wider">
+          {role === 'admin' ? 'Ironhide Admin' : 'IRONHIDE FITNESS'}
+        </Link>
 
         <nav className="hidden md:flex items-center gap-8">
           {navLinks.map(link => (
@@ -92,7 +94,12 @@ export function Navbar() {
         </nav>
 
         <div className="hidden md:flex items-center gap-4">
-          {user ? (
+          {role === 'admin' ? (
+            <>
+              <Link to="/admin" className="text-on-surface-variant hover:text-on-surface text-body-md font-body transition-colors">Admin</Link>
+              <button onClick={handleSignOut} className="text-on-surface-variant hover:text-on-surface text-body-md font-body transition-colors">Sign Out</button>
+            </>
+          ) : user ? (
             <>
               <Link to="/dashboard" className="text-on-surface-variant hover:text-on-surface text-body-md font-body transition-colors">Dashboard</Link>
               <Link to="/id-card" className="text-on-surface-variant hover:text-on-surface text-body-md font-body transition-colors">My ID</Link>
@@ -127,7 +134,12 @@ export function Navbar() {
             <Link key={link.to} to={link.to} onClick={close} className="text-on-surface hover:text-primary-container text-body-md font-body transition-colors">{link.label}</Link>
           ))}
           <div className="border-t border-surface-container-highest pt-4 flex flex-col gap-4">
-            {user ? (
+            {role === 'admin' ? (
+              <>
+                
+                <button onClick={() => { handleSignOut(); close(); }} className="text-left text-on-surface text-body-md font-body">Sign Out</button>
+              </>
+            ) : user ? (
               <>
                 <Link to="/dashboard" onClick={close} className="text-on-surface text-body-md font-body">Dashboard</Link>
                 <Link to="/id-card" onClick={close} className="text-on-surface text-body-md font-body">My ID</Link>

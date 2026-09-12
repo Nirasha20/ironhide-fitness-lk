@@ -1,7 +1,16 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ScrollToTop } from './components/ScrollToTop';
+import { AuthGuard } from './components/layout/AuthGuard';
+import { AdminGuard } from './components/layout/AdminGuard';
+import { AdminPageWrapper } from './components/layout/AdminPageWrapper';
+import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import AdminPaymentsPage from './pages/admin/AdminPaymentsPage';
+import AdminCashManagementPage from './pages/admin/Cashmanagementtab';
+import AdminMembershipsPage from './pages/admin/AdminMembershipsPage';
+import AdminStaffPage from './pages/admin/StaffrosterPage';
+import AdminAttendancePage from './pages/admin/AttendancePage';
 import LandingPage from './pages/LandingPage';
 import FacilitiesPage from './pages/FacilitiesPage';
 import MembershipPage from './pages/MembershipPage';
@@ -25,6 +34,7 @@ import RefundPolicyPage from './pages/RefundPolicyPage';
 import HelpPage from './pages/HelpPage';
 import SettingsPage from './pages/SettingsPage';
 import StaffParkingPage from './pages/StaffParkingPage';
+import SecondaryMemberSetupPage from './pages/SecondaryMemberSetupPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -57,7 +67,17 @@ export default function App() {
             <Route path="/help" element={<HelpPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/staff/parking" element={<StaffParkingPage />} />
+            <Route path="/secondary-setup" element={<SecondaryMemberSetupPage />} />
             <Route path="*" element={<NotFoundPage />} />
+            <Route path="/admin" element={<AuthGuard><AdminGuard><AdminPageWrapper /></AdminGuard></AuthGuard>}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboardPage />} />
+              <Route path="staff" element={<AdminStaffPage />} />
+              <Route path="staff/attendance" element={<AdminAttendancePage />} />
+              <Route path="payments" element={<AdminPaymentsPage />} />
+              <Route path="cash-management" element={<AdminCashManagementPage />} />
+              <Route path="memberships" element={<AdminMembershipsPage />} />
+            </Route>
           </Routes>
         </BrowserRouter>
       </AuthProvider>

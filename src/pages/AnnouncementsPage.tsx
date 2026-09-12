@@ -26,7 +26,7 @@ export default function AnnouncementsPage() {
     getDocs(query(collection(db, 'announcements'), orderBy('createdAt', 'desc')))
       .then(snap => setItems(snap.docs.map(d => ({ id: d.id, ...d.data(), createdAt: d.data().createdAt?.toDate() }) as Announcement)))
       .catch(() => setItems([
-        { id: '1', title: 'Welcome to IronHide Fitness', body: 'The gym app is now live. Sign up to access your digital membership card and track your workouts.', type: 'info', createdAt: new Date() },
+        { id: '1', title: 'Welcome to IronHide FITNESS', body: 'The gym app is now live. Sign up to access your digital membership card and track your workouts.', type: 'info', createdAt: new Date() },
         { id: '2', title: 'New Equipment Arriving', body: 'Hammer Strength plate-loaded machines arriving this Friday. Power rack zone closed for 2 hours during installation.', type: 'alert', createdAt: new Date() },
       ]))
       .finally(() => setLoading(false));
@@ -51,7 +51,7 @@ export default function AnnouncementsPage() {
           <div className="flex flex-col items-center gap-4 py-20 text-center">
             <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface-variant opacity-40"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             <h3 className="font-display text-headline-md uppercase">No Announcements</h3>
-            <p className="text-body-lg text-on-surface-variant font-body">Check back soon for updates from IronHide Fitness.</p>
+            <p className="text-body-lg text-on-surface-variant font-body">Check back soon for updates from IronHide FITNESS.</p>
           </div>
         ) : (
           <div className="space-y-4">

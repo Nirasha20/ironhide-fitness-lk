@@ -75,10 +75,10 @@ export default function LandingPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
-            { name: 'DAILY', price: 'LKR 2,500', period: '/DAY', features: ['24/7 Access', 'Locker Room'], popular: false },
-            { name: 'MONTHLY', price: 'LKR 15,000', period: '/MO', features: ['24/7 Access', 'Locker Room', 'Standard Equipment'], popular: false },
-            { name: 'ANNUAL', price: 'LKR 165,000', period: '/YR', features: ['Unlimited Access', 'PT Sessions', 'Apparel Kit', 'VIP Lounge'], popular: true },
-            { name: 'ANNUAL — COUPLE', price: 'LKR 310,000', period: '/YR', features: ['Everything in Annual', 'Partner Account Included', 'Shared Expiry'], popular: false },
+            { tier: 'DAY PASS', name: 'DAILY', price: 'LKR 2,500', period: '/DAY', features: ['24/7 Access', 'Locker Room'], popular: false },
+            { tier: 'STANDARD', name: 'MONTHLY', price: 'LKR 15,000', period: '/MO', features: ['24/7 Access', 'Locker Room', 'Standard Equipment'], popular: false },
+            { tier: 'PREMIUM', name: 'ANNUAL', price: 'LKR 165,000', period: '/YR', features: ['Unlimited Access', 'PT Sessions', 'Apparel Kit', 'VIP Lounge'], popular: true },
+            { tier: 'DUO', name: 'ANNUAL — COUPLE', price: 'LKR 310,000', period: '/YR', features: ['Everything in Annual', 'Partner Account Included', 'Shared Expiry'], popular: false },
           ].map(plan => (
             <div key={plan.name} className={`bg-[#111111] p-8 flex flex-col items-center relative transition-all hover:-translate-y-2 ${plan.popular ? 'border-2 border-primary-container scale-105 z-10 crimson-glow' : 'border-t-2 border-t-primary-container border border-[#333333]'}`}>
               {plan.popular && <div className="absolute -top-4 bg-primary-container text-white font-label-sm text-label-sm px-4 py-1 uppercase font-extrabold tracking-widest">MOST POPULAR</div>}

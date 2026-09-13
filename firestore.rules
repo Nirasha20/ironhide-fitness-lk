@@ -103,6 +103,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Membership ID counter — any signed-in user can transact (signup flow)
+    match /memberMeta/{doc} {
+      allow read, write: if isSignedIn();
+    }
+
     // ── Couple invite tokens ──────────────────────────────────────────────────
     // Publicly readable so the setup page can validate the token without auth.
     // Only update allowed: marking used=true (one-time use), by the secondary member

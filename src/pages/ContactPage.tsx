@@ -47,7 +47,7 @@ export default function ContactPage() {
             {[
               { icon: 'location_on', title: 'ADDRESS', body: '114C Negombo Rd, Wattala 32350, Sri Lanka' },
               { icon: 'call', title: 'PHONE', body: '070 322 2211' },
-              { icon: 'schedule', title: 'OPENING HOURS', body: 'Mon–Fri: 5AM–10PM\nSat: 7AM–11AM\nSun: 5AM–10PM' },
+              { icon: 'schedule', title: 'OPENING HOURS', body: 'Mon–Fri: 5AM–10PM\nSat: 7AM–11AM' },
             ].map(item => (
               <div key={item.title} className="flex items-start gap-4">
                 <span className="material-symbols-outlined text-primary-container text-3xl">{item.icon}</span>

@@ -44,7 +44,7 @@ export function Footer() {
           </a>
         </div>
         <p className="font-label-sm text-label-sm text-on-surface-variant uppercase">070 322 2211</p>
-        <p className="font-label-sm text-label-sm text-on-surface-variant">Mon–Fri: 5AM–10PM<br />Sat: 7AM–11AM</p>
+        <p className="font-label-sm text-label-sm text-on-surface-variant">Mon–Sat: 5:30AM–1PM, 3–10PM</p>
       </div>
     </footer>
   );

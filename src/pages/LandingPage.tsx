@@ -108,7 +108,7 @@ export default function LandingPage() {
             <div className="space-y-8">
               {[
                 { icon: 'location_on', title: 'HEADQUARTERS', body: '114C Negombo Rd, Wattala 32350, Sri Lanka' },
-                { icon: 'schedule', title: 'HOURS', body: 'Mon–Fri: 5AM–10PM\nSat: 7AM–11AM' },
+                { icon: 'schedule', title: 'HOURS', body: 'Mon–Sat: 5:30AM–1PM, 3–10PM' },
                 { icon: 'call', title: 'CONTACT', body: '070 322 2211\nironhide.fitness@gmail.com' },
               ].map(item => (
                 <div key={item.title} className="flex items-start gap-4">

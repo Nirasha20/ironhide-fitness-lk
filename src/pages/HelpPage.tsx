@@ -111,9 +111,7 @@ export default function HelpPage() {
             <div className="space-y-2 font-body text-body-md text-on-surface-variant">
               <p><strong className="text-on-surface">Phone:</strong> 070 322 2211</p>
               <p><strong className="text-on-surface">Address:</strong> 114C Negombo Rd, Wattala 32350, Sri Lanka</p>
-              <p><strong className="text-on-surface">Mon–Fri:</strong> 5AM–10PM</p>
-              <p><strong className="text-on-surface">Saturday:</strong> 7AM–11AM</p>
-              <p><strong className="text-on-surface">Sunday:</strong> 5AM–10PM</p>
+              <p><strong className="text-on-surface">Mon–Sat:</strong> 5:30AM–1PM, 3–10PM</p>
             </div>
           </section>
         </div>

@@ -60,10 +60,18 @@ export const onPaymentConfirmed = functions .runWith({ secrets: ["GMAIL_USER", "
     if (after.status !== 'confirmed') return;
     const uid = context.params.uid;
     const paymentId = context.params.paymentId;
-    const durationMonths: Record<string, number> = { Monthly: 1, Quarterly: 3, Annual: 12 };
-    const months = durationMonths[after.plan as string] ?? 1;
+    const plan = (after.plan as string) ?? '';
     const expiry = new Date();
-    expiry.setMonth(expiry.getMonth() + months);
+    if (plan.toLowerCase() === 'daily') {
+      expiry.setDate(expiry.getDate() + 1);
+    } else if (plan.toLowerCase().startsWith('annual')) {
+      expiry.setFullYear(expiry.getFullYear() + 1);
+    } else if (plan.toLowerCase() === 'quarterly') {
+      expiry.setMonth(expiry.getMonth() + 3);
+    } else {
+      // Monthly (default)
+      expiry.setMonth(expiry.getMonth() + 1);
+    }
     
     const memberSnap = await db.collection('members').doc(uid).get();
     const memberData = memberSnap.data();

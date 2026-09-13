@@ -239,9 +239,8 @@ export default function CashManagementTab() {
 
   const totals = useMemo(() => {
     const cashReceived = dayPayments.reduce((sum, p) => sum + p.amount, 0);
-    const deposited = dayPayments
-      .filter((p) => p.status === 'deposited')
-      .reduce((sum, p) => sum + p.amount, 0);
+    // Deposited = sum of actual bank deposit slips recorded for this day
+    const deposited = dayDeposits.reduce((sum, d) => sum + d.amount, 0);
     const depositSlipCount = dayDeposits.length;
     return {
       cashReceived,

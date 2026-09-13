@@ -1,7 +1,7 @@
 import {
   doc, getDoc, setDoc, updateDoc, collection,
   getDocs, addDoc, serverTimestamp, query, orderBy,
-  where
+  where, runTransaction
 } from 'firebase/firestore';
 import { db, functions as firebaseFunctions } from './firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -36,8 +36,21 @@ export async function getMember(uid: string): Promise<Member | null> {
   return { uid, ...snap.data() } as Member;
 }
 
+export async function generateMembershipId(): Promise<string> {
+  const year = new Date().getFullYear();
+  const counterRef = doc(db, 'memberMeta', `counter_${year}`);
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(counterRef);
+    const current = snap.exists() ? (snap.data().count as number) : 0;
+    const next = current + 1;
+    tx.set(counterRef, { count: next, year }, { merge: true });
+    return `${year}-${String(next).padStart(4, '0')}`;
+  });
+}
+
 export async function createMember(uid: string, data: Omit<Member, 'uid' | 'createdAt' | 'role'>): Promise<void> {
-  await setDoc(doc(db, 'members', uid), { ...data, role: 'customer', createdAt: serverTimestamp() });
+  const membershipId = await generateMembershipId();
+  await setDoc(doc(db, 'members', uid), { ...data, role: 'customer', membershipId, createdAt: serverTimestamp() });
 }
 
 export async function updateMember(uid: string, data: Partial<Member>): Promise<void> {

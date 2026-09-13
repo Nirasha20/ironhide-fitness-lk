@@ -82,13 +82,17 @@ function RenewContent() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
+  const FALLBACK_PLANS: MembershipPlan[] = [
+    { id: 'daily',         name: 'Daily',         duration: '1 day',    price: 2500,   features: ['Locker Room'], isActive: true },
+    { id: 'monthly',       name: 'Monthly',       duration: '1 month',  price: 15000,  features: ['Locker Room'], isActive: true },
+    { id: 'annual',        name: 'Annual',        duration: '12 months',price: 165000, features: ['Locker Room'], isActive: true },
+    { id: 'annual-couple', name: 'Annual Couple', duration: '12 months',price: 310000, features: ['Locker Room'], isActive: true },
+  ];
+
   useEffect(() => {
     getMembershipPlans()
-      .then(data => setPlans(data.length ? data : [
-        { id: '1', name: 'Monthly', duration: '1 month', price: 5000, features: ['24/7 Access', 'Locker Room'], isActive: true },
-        { id: '2', name: 'Quarterly', duration: '3 months', price: 13500, features: ['All Monthly Features', 'Guest Passes'], isActive: true },
-        { id: '3', name: 'Annual', duration: '12 months', price: 48000, features: ['Unlimited Access', 'PT Sessions'], isActive: true },
-      ]))
+      .then(data => setPlans(data.length ? data : FALLBACK_PLANS))
+      .catch(() => setPlans(FALLBACK_PLANS))
       .finally(() => setLoading(false));
   }, []);
 
